@@ -1,0 +1,161 @@
+metadata:
+  start_version: 1.0
+  longname: 'Sescousse model'
+
+simulation:
+  sim_name: 'sescousse'
+  version: 'mf6'
+  sim_ws: 'ml'
+
+model:
+  simulation: 'sescousse'
+  modelname: 'sescousse'
+  options:
+    print_input: True
+    save_flows: True
+  external_path: 'external/'
+  packages: 
+    - dis
+    - tdis 
+    - ims 
+    - ic
+    - oc
+    - npf 
+    - rch
+    - evt
+    - ghb
+    - riv 
+    - drn
+    - obs
+
+setup_grid:
+  source_data:
+    features_shapefile:
+      filename: '../gis/model_domain_ext.shp'
+  buffer: 0
+  dxy: 5  # Uniform x, y spacing in meters
+  rotation: 74.
+  crs: 2154  # EPSG code RGF93 (meters)
+
+dis:
+  remake_top: True  
+  options:
+    length_units: 'meters'
+  dimensions:
+    nlay: 1
+  griddata : 
+    #top : 30 # arbitrary thickness of 50m.
+    botm : -20.
+  source_data:
+    top:
+        filename: '../gis/dtm_no_drn_ext.tif'
+        elevation_units: 'meters'
+    idomain:
+        filename: '../gis/idomain.tif'
+        elevation_units: 'meters'
+
+tdis:
+  options:
+    time_units: 'seconds'
+    start_date_time: '2023-07-12'
+  perioddata:
+    group 1:
+      perlen: 86400 # one day in seconds
+      nper: 1
+      nstp: 1
+      steady: True
+
+ic:
+  griddata: 
+    strt : 21.
+  
+npf:
+  options:
+    save_flows: True
+    rewet: True
+  griddata:
+    icelltype: 0 # confined (fixed transmissivity) 
+    k: 1.e-4 # m/s
+    k33: 1.e-5 # m/s
+
+rch:
+  options:
+    print_input: True
+    print_flows: False
+    save_flows: True
+    readasarrays: True
+  recharge: 9.5e-9  # 300mm/year in m/s
+
+
+ghb:
+  options:
+    save_flows: True
+  source_data:
+    shapefile:
+      filename: '../gis/ghb_lines.shp'
+      id_column: 'id'
+      all_touched: True
+    csvfile:
+      filename: '../data/ghb_heads.csv'
+      id_column: 'id'
+      bhead_column: 'h'
+      datetime_column: 'start_datetime'
+      end_datetime_column: 'end_datetime'
+      length_units: 'meters'
+    cond: 1.e-2
+
+riv:
+  options:
+    save_flows: True
+  source_data:
+    shapefile:
+      filename: '../gis/riv_lines.shp'
+      id_column: 'id'
+      boundname_column: 'id'
+    stage:
+      filename: '../gis/h_riv.tif'
+      elevation_units: 'meters'
+      resample_method: 'linear'
+      stat: 'mean'
+    cond: 1.e-3 # m/s
+  mfsetup_options:
+    default_rbot_thickness: 1. # m
+
+drn:
+  options:
+    save_flows: True
+  source_data:
+    shapefile:
+      filename: '../gis/drn_lines.shp'
+      id_column: 'id'
+    elev:
+      filename: '../gis/z_drn_50cm.tif'
+      resample_method : 'linear'
+      stat: 'mean' 
+      elevation_units: 'meters'
+    cond: 1.e-4 # m/s
+
+obs:
+  source_data:
+    filenames: '../gis/obs_points.csv'
+    column_mappings:
+      obsname: ['pid']
+  mfsetup_options:
+    filename_fmt: '{}.head.csv' 
+
+oc:
+  period_options:
+    0: ['save head last','save budget last']
+
+ims:
+  options:
+    print_option: 'all'
+    complexity: 'complex'
+  nonlinear:
+    outer_dvclose: 1  # m3/s, 
+    outer_maximum: 50
+  linear:
+    inner_maximum: 100
+    inner_dvclose: 0.01
+    rcloserecord: [0.001, 'relative_rclose']
+
