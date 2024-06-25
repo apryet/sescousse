@@ -4,9 +4,7 @@ import pandas as pd
 from matplotlib import pyplot as plt
 import flopy
 import mpl_toolkits.mplot3d.axes3d as p3
-from matplotlib.ticker import LinearLocator, FormatStrFormatter
 from matplotlib import cm
-
 
 # load simulation data 
 sim_dir = '.'
@@ -21,6 +19,11 @@ hobs = pd.read_csv(obs_file,index_col=0,parse_dates=True)
 
 # load swb data
 swb = pd.read_csv(os.path.join('swb_vars.csv'),index_col=0,parse_dates=True)
+
+fig_dir = os.path.join(sim_dir,'fig')
+
+if not os.path.exists(fig_dir):
+    os.mkdir(fig_dir)
 
 # -----------------------------------------------------------
 # soil water budget 
@@ -64,9 +67,21 @@ ax2.legend(loc='upper left')
 
 fig.align_ylabels()
 fig.tight_layout()
-fig.savefig('swb_vars.pdf',dpi=300)
+fig.savefig(os.path.join('fig','swb_vars.pdf'),dpi=300)
 
+# full period water budget
+swb_sum = swb.iloc[1:].sum(axis=0)
+P, PET, T, D, RU, R = [swb_sum[var] for var in ['P','PET','T','D','RU','R']]
 
+DS = swb.S[-1] - swb.S[0]
+print(f'Total precipitation :{P:.0f} mm')
+print(f'Potential evapotranspiration : {PET:.0f} mm')
+print(f'Recharge : {D:.0f} mm')
+print(f'Transpiration from soil : {T:.0f} mm')
+print(f'Transpiration from aquifer : {RU:.0f}')
+print(f'T+RU : {T+RU:.0f} mm')
+print(f'P - (T+R) : {P-(T+R):.0f} mm')
+print(f'Soil water storage variation:{DS:.0f} mm')
 
 # -------------------------------------
 #--- sim obs records  
@@ -90,14 +105,13 @@ for ax,loc in zip(axs.ravel(),hsim.columns):
     ax.set_title(loc)
 
 fig.tight_layout()
-
 fig.savefig(os.path.join(sim_dir,'fig','sim_obs_ts.pdf'),dpi=300)
 
 
 # -------------------------------------
 #--- drn records 
 # -------------------------------------
-
+'''
 fig,axs = plt.subplots(3,1,sharex=True, figsize=(10,6)) #A4 paper size
 
 ax0, ax1, ax2 = axs
@@ -119,34 +133,41 @@ fig.align_ylabels()
 lgd = [ax.legend(loc='upper left') for ax in [ax0,ax1,ax2]]
 fig.tight_layout()
 fig.savefig(os.path.join('fig','sim_records.pdf'),dpi=300)
-
-
+'''
 # -------------------------------------
 #--- 2D map plot 
 # -------------------------------------
 
 # load simulation data 
 sim = flopy.mf6.MFSimulation.load(sim_ws='.')
+
 ml = sim.get_model()
+
+'''
+oc = ml.get_package('oc')
+oc.saverecord = [("HEAD", "ALL")]
+oc.head_filerecord = f'{ml.name}.hds'
+sim.write_simulation()
+'''
+
 nper = sim.tdis.nper.data
 hds = ml.output.head().get_alldata()
 
 # 2D map
-for i,n in enumerate(range(0,nper,5)):
-    fig = plt.figure(figsize=(10, 10))
-    ax = fig.add_subplot(1, 1, 1, aspect="equal")
-    modelmap = flopy.plot.PlotMapView(model=ml, ax=ax)
-    ax.set_xlim(385600., 387500.)
-    ax.set_title('Piézométrie du ' + hsim.date[n].strftime("%d-%m-%Y"))
-    pa = modelmap.plot_array(hds[n,:,:],vmin=20,vmax=22)
-    cb = plt.colorbar(pa, shrink=0.5)
-    cb.set_label('m NGF')
-    fig.savefig(os.path.join(sim_dir,'fig',f'h_{i}.png'))
+#for i,n in enumerate(range(0,nper,5)):
+i,n=0,0
+fig = plt.figure(figsize=(10, 10))
+ax = fig.add_subplot(1, 1, 1, aspect="equal")
+modelmap = flopy.plot.PlotMapView(model=ml, ax=ax)
+#ax.set_xlim(385600., 387500.)
+ax.set_title('Piézométrie du ' + hsim.date[n].strftime("%d-%m-%Y"))
+pa = modelmap.plot_array(hds[n,:,:]) #,vmin=20,vmax=22)
+cb = plt.colorbar(pa, shrink=0.5)
+cb.set_label('m NGF')
+fig.savefig(os.path.join(sim_dir,'fig',f'h_{i}.png'))
 
 '''
-convert 'h_%d.png[0-54]' -scale 1066x800 -delay 20 -coalesce -layers Optimize -fuzz 2% +dither hmap.gif
-'''
-
+#convert 'h_%d.png[0-54]' -scale 1066x800 -delay 20 -coalesce -layers Optimize -fuzz 2% +dither hmap.gif
 # -------------------------------------
 #--- 3D surface plot 
 # -------------------------------------
@@ -170,9 +191,7 @@ for i,n in enumerate(range(0,nper,5)):
         cbar.set_label('h [m NGF]')
     fig.savefig(os.path.join(sim_dir,'fig',f'hsurf_{i}.png'),dpi=128)
 
-'''
-convert 'hsurf_%d.png[0-54]' -scale 1066x800 -delay 20 -coalesce -layers Optimize -fuzz 2% +dither hsurf.gif
-'''
+#convert 'hsurf_%d.png[0-54]' -scale 1066x800 -delay 20 -coalesce -layers Optimize -fuzz 2% +dither hsurf.gif
 
 
 #
@@ -200,4 +219,4 @@ flopy.export.shapefile_utils.write_grid_shapefile('heads.shp',
                                                   )
 
 
-
+'''

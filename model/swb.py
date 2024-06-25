@@ -5,7 +5,7 @@ import pandas as pd
 # modified from :
 # https://github.com/soilwater/pynotes-agriscience/blob/gh-pages/exercises/soil_water_balance.ipynb
 # removed runoff, set Kc to constant, external computation of ET0
-def run_swb(clim_file='clim.csv',par_file=None,cwd='.'):
+def run_swb(clim_file='clim.csv',theta_sat = None, D_max= None, par_file=None, cwd='.'):
     # load clim data
     clim = pd.read_csv(os.path.join(cwd,clim_file),index_col=0, parse_dates=True)
     P = clim.P
@@ -17,11 +17,12 @@ def run_swb(clim_file='clim.csv',par_file=None,cwd='.'):
     sim_dates = pd.date_range(start_date,end_date) 
 
     # vegetation and soil parameters
-    I_max = 1 # Canopy and crop residue interception (evaporation) in mm/day
+    #I_max = 1 # Canopy and crop residue interception (evaporation) in mm/day
     z = 1000 # Length of the soil profile in mm
 
     # characteristic water contents
-    theta_sat = 0.40
+    if theta_sat is None: 
+        theta_sat = 0.40
 
     # if par_file provided, read file and set par values 
     if par_file is not None:
@@ -42,7 +43,6 @@ def run_swb(clim_file='clim.csv',par_file=None,cwd='.'):
     # Maximum daily drainage rate [mm/d]
     D_max = 25 
 
-
     S_max =theta_sat*z # Saturation
     FC = theta_fc*z  # Field capacity
     PWP = theta_r*z # Permanent Wilting Point
@@ -50,13 +50,17 @@ def run_swb(clim_file='clim.csv',par_file=None,cwd='.'):
     # allocate arrays with NaN values
     N = sim_dates.shape[0]
     T = np.ones(N)*np.nan # plant transpiration
-    D = np.ones(N)*np.nan # drainage  (deep percolation)
+    D = np.ones(N)*np.nan # soil drainage
+    F = np.ones(N)*np.nan # soil fast drainage (overflow)
     S = np.ones(N)*np.nan # soil water storage 
+    R = np.ones(N)*np.nan # groundwater recharge
 
     # Define initial conditions
     S[0] = FC # field capacity
-    T[0] = PET[0]*Kc 
-    D[0] = D_max*(S[0]/S_max)**((D_max/S_max - 1)/(-D_max/S_max))
+    T[0] = PET[0]*Kc # transpiration from soil
+    D[0] = D_max*(S[0]/S_max)**((D_max/S_max - 1)/(-D_max/S_max)) # soil drainage
+    F[0] = np.maximum(S[0]-S_max,0) # soil fast drainage
+    R[0] = D[0] + F[0] # groundwater recharge
 
     # Model
     for t in range(1, N):
@@ -71,12 +75,12 @@ def run_swb(clim_file='clim.csv',par_file=None,cwd='.'):
         # update soil water content 
         S[t] = S[t-1] + P[t] - T[t] - D[t]
         # overflow (added to drainage) 
-        F = np.maximum(S[t]-S_max,0)
-        S[t] = S[t] - F
-        D[t] = D[t] + F
+        F[t] = np.maximum(S[t]-S_max,0)
+        S[t] = S[t] - F[t]
+        R[t] = D[t] + F[t]
 
     # save recharge and transpiration for modflow  
-    swb_df = pd.DataFrame({'P':P, 'PET':PET, 'T':T, 'D':D,'S':S},index=sim_dates)
+    swb_df = pd.DataFrame({'P':P, 'PET':PET, 'T':T, 'D':D,'R':R, 'F':F,'S':S},index=sim_dates)
 
     # consider aquifer root water uptake as evapotranspiration deficit 
     # (water that cannot be taken from the soil is taken from the aquifer)

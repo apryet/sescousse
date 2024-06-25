@@ -29,6 +29,7 @@ gwf = sim.get_model()
 
 # only save last head heads 
 gwf.oc.saverecord = [] # [("HEAD", "LAST")]
+gwf.oc.saverecord = [("HEAD", "LAST")]
 
 # write oc package (!)
 gwf.oc.write()
@@ -162,6 +163,12 @@ obs.index= obs.obsnme
 # set weight to 0 when drains are dry 
 idx = obs.index.str.contains('fs') & (obs.date < pd.to_datetime('2023-11-01').date())
 obs.loc[idx,'weight']=0
+# fix issue with fs3
+idx = obs.index.str.contains('fs3') & (obs.date < pd.to_datetime('2023-12-01').date())
+obs.loc[idx,'weight']=0
+# less weight to drain obs, anyway
+idx = obs.index.str.contains('fs')
+obs.loc[idx,'weight'].div(2)
 
 # --- further PEST settings 
 
