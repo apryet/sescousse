@@ -67,7 +67,10 @@ head = flopy.utils.HeadFile('sescousse.hds')
 hdata = head.get_alldata()[0]
 
 # head cross-section
-plt.plot(hdata[0,1:-1,130])
+fig,ax = plt.subplots(1,1,figsize=(4,4))
+ax.plot(hdata[0,1:-1, int(ml.dis.ncol.data/2)])
+fig.tight_layout()
+fig.savefig(os.path.join('fig','xs_head.png'),dpi=300)
 
 # plot head 
 fig = plt.figure(figsize=(7,4))

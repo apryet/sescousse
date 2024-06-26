@@ -129,6 +129,9 @@ for i in range(nper):
 
 ml.riv.stress_period_data.set_data(riv_spd)
 
+ml.riv.print_flows=False
+ml.riv.print_input=False
+
 # --- drn package 
 drn = ml.get_package('drn_0')
 drn_rec0 = drn.stress_period_data.get_data()[0]
@@ -142,14 +145,19 @@ ghb_rec0['cond'] = parvals.loc['cghb']
 ml.ghb.stress_period_data.set_data({0:ghb_rec0})
 
 # --- oc package 
-# disable 
 oc = ml.get_package('oc')
-oc.saverecord = [] #  [("HEAD", "ALL")]
+
+# save every 10 stress periods 
+spd = { k:[] for k in range(0,nper)}
+for k in range(0,nper,10): spd[k]=[('HEAD','LAST'), ('BUDGET','LAST')] 
+
+oc.saverecord = spd 
 
 # --- IMS package
 # loosen convergence criteria to speed up simulation
 sim.ims.outer_dvclose = 1e-2
 sim.ims.inner_dvclose = 1e-2
+sim.ims.print_option='summary'
 
 # ---- ic package 
 

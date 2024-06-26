@@ -152,19 +152,19 @@ sim.write_simulation()
 
 nper = sim.tdis.nper.data
 hds = ml.output.head().get_alldata()
+kstepkper = ml.output.head().get_kstpkper()
 
 # 2D map
-#for i,n in enumerate(range(0,nper,5)):
-i,n=0,0
-fig = plt.figure(figsize=(10, 10))
-ax = fig.add_subplot(1, 1, 1, aspect="equal")
-modelmap = flopy.plot.PlotMapView(model=ml, ax=ax)
-#ax.set_xlim(385600., 387500.)
-ax.set_title('Piézométrie du ' + hsim.date[n].strftime("%d-%m-%Y"))
-pa = modelmap.plot_array(hds[n,:,:]) #,vmin=20,vmax=22)
-cb = plt.colorbar(pa, shrink=0.5)
-cb.set_label('m NGF')
-fig.savefig(os.path.join(sim_dir,'fig',f'h_{i}.png'))
+for i in range(hds.shape[0]):
+    fig = plt.figure(figsize=(10, 10))
+    ax = fig.add_subplot(1, 1, 1, aspect="equal")
+    modelmap = flopy.plot.PlotMapView(model=ml, ax=ax)
+    ax.set_xlim(385600., 387500.)
+    ax.set_title('Piézométrie du ' + hsim.date[kstepkper[i][1]].strftime("%d-%m-%Y"))
+    pa = modelmap.plot_array(hds[i,:,:], vmin=20,vmax=22)
+    cb = plt.colorbar(pa, shrink=0.5)
+    cb.set_label('m NGF')
+    fig.savefig(os.path.join(sim_dir,'fig',f'h_{i}.png'))
 
 '''
 #convert 'h_%d.png[0-54]' -scale 1066x800 -delay 20 -coalesce -layers Optimize -fuzz 2% +dither hmap.gif

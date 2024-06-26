@@ -11,7 +11,7 @@ model:
   simulation: 'sescousse'
   modelname: 'sescousse'
   options:
-    print_input: True
+    print_input: False
     save_flows: True
   external_path: 'external/'
   packages: 
@@ -34,7 +34,7 @@ setup_grid:
     features_shapefile:
       filename: '../gis/model_domain_ext_buff.shp'
   buffer: 0
-  dxy: 5  # Uniform x, y spacing in meters
+  dxy: 10  # Uniform x, y spacing in meters
   rotation: 74.
   crs: 2154  # EPSG code RGF93 (meters)
 
@@ -82,7 +82,7 @@ npf:
 
 rch:
   options:
-    print_input: True
+    print_input: False
     print_flows: False
     save_flows: True
     readasarrays: True
@@ -132,7 +132,7 @@ riv:
       id_column: 'id'
       boundname_column: 'id'
     stage:
-      filename: '../gis/h_riv_lower.tif'
+      filename: '../gis/h_riv.tif'
       elevation_units: 'meters'
       resample_method: 'nearest'
       stat: 'mean'
@@ -148,7 +148,7 @@ drn:
       filename: '../gis/drn_lines.shp'
       id_column: 'id'
     elev:
-      filename: '../gis/z_drn_50cm.tif'
+      filename: '../gis/z_drn_110cm.tif'
       resample_method : 'nearest'
       stat: 'mean' 
       elevation_units: 'meters'
