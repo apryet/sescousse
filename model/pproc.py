@@ -45,7 +45,7 @@ twax0.invert_yaxis()
 twax0.set_ylabel('P [mm/d]')
 twax0.legend(loc='upper right')
 
-ax1.bar(swb.index,swb.D,color='darkgrey',label='Recharge')
+ax1.bar(swb.index,swb.R,color='darkgrey',label='Recharge')
 ax1.set_ylabel('mm/d')
 
 ax1.legend(loc='upper left')
@@ -87,7 +87,7 @@ print(f'Soil water storage variation:{DS:.0f} mm')
 #--- sim obs records  
 # -------------------------------------
 
-fig,axs=plt.subplots(2,3,figsize=(10,6),sharex=True)
+fig,axs=plt.subplots(2,3,figsize=(10,6),sharex=True,sharey=True)
 
 for ax,loc in zip(axs.ravel(),hsim.columns):
     # plot sim
@@ -103,37 +103,19 @@ for ax,loc in zip(axs.ravel(),hsim.columns):
                                  ls='',color='darkblue')
     ax.set_xlim(hsim.date.min(),hsim.date.max())
     ax.set_title(loc)
+    ax.set_ylim(19.6,22.4)
+
+
+axs[0,0].set_ylabel('m NGF')
+axs[1,0].set_ylabel('m NGF')
+#axs[0,0].axhline(21.46,ls='--',color='grey')
+#axs[0,1].axhline(21.37,ls='--',color='grey')
+#axs[0,2].axhline(21.75,ls='--',color='grey')
 
 fig.tight_layout()
 fig.savefig(os.path.join(sim_dir,'fig','sim_obs_ts.pdf'),dpi=300)
 
 
-# -------------------------------------
-#--- drn records 
-# -------------------------------------
-'''
-fig,axs = plt.subplots(3,1,sharex=True, figsize=(10,6)) #A4 paper size
-
-ax0, ax1, ax2 = axs
-
-ax0.bar(clim.index,clim.D,color='darkgrey',label='Recharge')
-ax0.set_ylabel('mm/d')
-
-ax1.bar(hsim.date, drnf_records, color='tan',label='Drainage',alpha=0.8)
-ax1.set_ylabel('mm/d')
-
-for loc in ['PS1','PS2','PS3']:
-    hsim.loc[:,loc].plot(ax=ax2,label=loc)
-
-ax2.set_ylabel('m NGF')
-
-ax2.set_xlim(hsim.index.min(),hsim.index.max())
-
-fig.align_ylabels()
-lgd = [ax.legend(loc='upper left') for ax in [ax0,ax1,ax2]]
-fig.tight_layout()
-fig.savefig(os.path.join('fig','sim_records.pdf'),dpi=300)
-'''
 # -------------------------------------
 #--- 2D map plot 
 # -------------------------------------
@@ -154,20 +136,9 @@ nper = sim.tdis.nper.data
 hds = ml.output.head().get_alldata()
 kstepkper = ml.output.head().get_kstpkper()
 
-# 2D map
-for i in range(hds.shape[0]):
-    fig = plt.figure(figsize=(10, 10))
-    ax = fig.add_subplot(1, 1, 1, aspect="equal")
-    modelmap = flopy.plot.PlotMapView(model=ml, ax=ax)
-    ax.set_xlim(385600., 387500.)
-    ax.set_title('Piézométrie du ' + hsim.date[kstepkper[i][1]].strftime("%d-%m-%Y"))
-    pa = modelmap.plot_array(hds[i,:,:], vmin=20,vmax=22)
-    cb = plt.colorbar(pa, shrink=0.5)
-    cb.set_label('m NGF')
-    fig.savefig(os.path.join(sim_dir,'fig',f'h_{i}.png'))
+
 
 '''
-#convert 'h_%d.png[0-54]' -scale 1066x800 -delay 20 -coalesce -layers Optimize -fuzz 2% +dither hmap.gif
 # -------------------------------------
 #--- 3D surface plot 
 # -------------------------------------
@@ -194,29 +165,4 @@ for i,n in enumerate(range(0,nper,5)):
 #convert 'hsurf_%d.png[0-54]' -scale 1066x800 -delay 20 -coalesce -layers Optimize -fuzz 2% +dither hsurf.gif
 
 
-#
 
-# zone budget 
-zarr = np.zeros(ml.modelgrid.shape, dtype=int)
-idx = (X > 385600) & (X < 387500)
-idx = idx.reshape(zarr.shape)
-zarr[idx]=1
-zonbud = ml.output.zonebudget(zarr)
-
-cbc = ml.output.budget()
-
-drnb = ml.output.budget().get_data(text='DRN')
-drn_surf = 1071422 # m2
-drnf_records = -1*np.array([ drnb[i]['q'].sum() for i in range(nper)])/drn_surf*1000*86400 # m3/s to mm/d
-
-
-# export simulated heads to shapefile 
-flopy.export.shapefile_utils.write_grid_shapefile('heads.shp',
-                                                  ml.modelgrid,
-                                                  {'hmin':hds.min(axis=0)[0,:,:],
-                                                   'hmax':hds.max(axis=1)[0,:,:]},
-                                                  crs='epsg:2154',
-                                                  )
-
-
-'''

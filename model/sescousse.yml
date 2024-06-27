@@ -148,7 +148,7 @@ drn:
       filename: '../gis/drn_lines.shp'
       id_column: 'id'
     elev:
-      filename: '../gis/z_drn_110cm.tif'
+      filename: '../gis/z_drn_100cm.tif'
       resample_method : 'nearest'
       stat: 'mean' 
       elevation_units: 'meters'

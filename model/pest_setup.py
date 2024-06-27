@@ -108,6 +108,7 @@ with open(tpl_file, "w") as f:
 
 # add parameters 
 par = pst.add_parameters(tpl_file,pst_path='.')
+pst.rectify_pgroups()
 
 # adjust parameter bounds and values
 par = pst.parameter_data
@@ -144,14 +145,18 @@ sigma = 0.10 # m
 # add date columns to pst.observation_data 
 obs = pst.observation_data
 obs['date'] = (pd.to_datetime(start_date)+pd.to_timedelta(obs.time.values.astype(float),'s')).date
+
 # temporarily reset obs index 
 obs.index = pd.MultiIndex.from_frame(pd.DataFrame({'oname':obs.oname,'date':obs.date, 'loc':obs.usecol.str.upper()}))
+
 # default weights to 0 to make sure unavailable obs are discarded in PHI
 obs.weight = 0
+
 # set head obs 
 idx = obs.index.intersection(hobs.index) 
 obs.loc[idx,'obsval'] = hobs.loc[idx]
 obs.loc[idx,'weight'] = 1/sigma
+
 # set head fluct obs
 idx = obs.index.intersection(hobsfluct.index) 
 obs.loc[idx,'obsval'] = hobsfluct.loc[idx]
@@ -163,12 +168,18 @@ obs.index= obs.obsnme
 # set weight to 0 when drains are dry 
 idx = obs.index.str.contains('fs') & (obs.date < pd.to_datetime('2023-11-01').date())
 obs.loc[idx,'weight']=0
+
 # fix issue with fs3
 idx = obs.index.str.contains('fs3') & (obs.date < pd.to_datetime('2023-12-01').date())
 obs.loc[idx,'weight']=0
+
 # less weight to drain obs, anyway
 idx = obs.index.str.contains('fs')
-obs.loc[idx,'weight'].div(2)
+obs.loc[idx,'weight'] = obs.loc[idx,'weight'].div(2)
+
+# less weight for ps3
+idx = obs.index.str.contains('ps3')
+obs.loc[idx,'weight']= obs.loc[idx,'weight'].div(2)
 
 # --- further PEST settings 
 
@@ -182,7 +193,7 @@ pst.reg_data.wfac = 1.5
 pst.reg_data.wtol = 1.0e-2
 
 # adjust derinc
-pst.parameter_groups.loc[:,'derinc']=0.05
+pst.parameter_groups.loc[:,'derinc']=0.10
 
 # implement prefered value regularization
 pyemu.helpers.zero_order_tikhonov(pst)

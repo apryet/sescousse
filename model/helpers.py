@@ -34,12 +34,12 @@ def set_mf_par_vals():
     # load update swb vars 
     # recharge (soil drainage) and aquifer root water uptake
     swb = pd.read_csv('swb_vars.csv',index_col=0,parse_dates=True)
-    rech = swb.loc[:,'D']*0.001/86400 # mm/d to m/s
+    rech = swb.loc[:,'R']*0.001/86400 # mm/d to m/s
     evt = swb.loc[:,'RU']*0.001/86400 # mm/d to m/s
 
     # set initial values for steady state
-    rech.iloc[0] = 9.5e-9  # 300mm/year in m/s, for initial steady state
-    evt.iloc[0] = 0 # deactivate evt for initial steady state
+    rech.iloc[0] = 0. # 9.5e-9  # 300mm/year in m/s, for initial steady state
+    evt.iloc[0] = 0. # deactivate evt for initial steady state
 
     # set recharge 
     print('Setting recharge...')
