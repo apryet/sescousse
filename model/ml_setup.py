@@ -26,22 +26,32 @@ parvals = pdata['val']
 # set k 
 ml.npf.k.set_data(parvals.loc['k'])
 
-# set criv
-riv = ml.get_package('riv_0')
-riv_rec0 = riv.stress_period_data.get_data()[0]
-riv_rec = riv_rec0.copy()
-riv_rec['cond'] = parvals.loc['criv']
-
 # cdrn  
 drn = ml.get_package('drn_0')
 drn_rec0 = drn.stress_period_data.get_data()[0]
 drn_rec0['cond'] = parvals.loc['cdrn']
 ml.drn.stress_period_data.set_data({0:drn_rec0})
 
-# cghb
-ghb = ml.get_package('ghb_0')
-ghb_rec0 = ghb.stress_period_data.get_data()[0]
-ghb_rec0['cond'] = parvals.loc['cghb']
+'''
+# set criv
+riv = ml.get_package('riv_0')
+riv_rec0 = riv.stress_period_data.get_data()[0]
+riv_rec = riv_rec0.copy()
+riv_rec['cond'] = parvals.loc['criv']
+'''
+
+# ghb
+print('Setting cghb values...')
+ghb_rec0 = ml.ghb.stress_period_data.get_data()[0]
+# western bc
+idx = ghb_rec0['boundname']=='w'
+ghb_rec0['cond'][idx] = parvals.loc['cghbw']
+ghb_rec0['bhead'][idx] = parvals.loc['hghbw']
+# eastern bc
+idx = ghb_rec0['boundname']=='e'
+ghb_rec0['cond'][idx] = parvals.loc['cghbe']
+ghb_rec0['bhead'][idx] = parvals.loc['hghbe']
+# update values 
 ml.ghb.stress_period_data.set_data({0:ghb_rec0})
 
 # ims (strengten convergence criteria for steady-state)

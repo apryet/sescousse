@@ -20,8 +20,10 @@ sim = flopy.mf6.MFSimulation.load(sim_ws=steady_dir)
 ml = sim.get_model()
 
 # set sim start end dates 
-start_date = pd.to_datetime('2023-07-12')
-end_date = pd.to_datetime('2024-04-12')
+#start_date = pd.to_datetime('2023-07-12')
+start_date = pd.to_datetime('2023-10-15')
+#end_date = pd.to_datetime('2024-04-12')
+end_date = pd.to_datetime('2024-07-06')
 sim_dates = pd.date_range(start_date,end_date) 
 
 # load river level recorded at FS4
@@ -109,54 +111,63 @@ sto = flopy.mf6.ModflowGwfsto(
     transient={i: True for i in range(1,nper)},
 )
 
-# --- riv package 
-riv = ml.get_package('riv_0')
-# original recarray
-riv_rec0 = riv.stress_period_data.get_data()[0]
-riv_rec = riv_rec0.copy()
-riv_rec['cond'] = parvals.loc['criv']
-
-# reference level
-#riv_ref_value = 21.2133 
-riv_ref_value = 20.6 # min(h_fs4(t))
-# fluctuations to reference level
-riv_dh = riv_ref_records.values - riv_ref_value
-
-riv_spd = {}
-for i in range(nper):
-    riv_rec['stage'] = riv_rec0['stage']+riv_dh[i]
-    riv_spd[i]=riv_rec
-
-ml.riv.stress_period_data.set_data(riv_spd)
-
-ml.riv.print_flows=False
-ml.riv.print_input=False
-
 # --- drn package 
 drn = ml.get_package('drn_0')
 drn_rec0 = drn.stress_period_data.get_data()[0]
 drn_rec0['cond'] = parvals.loc['cdrn']
 ml.drn.stress_period_data.set_data({0:drn_rec0})
 
+# --- riv package (converted as second drain package drn)
+riv = ml.get_package('riv_0')
+# original recarray ModflowGwfriv
+riv_rec0 = riv.stress_period_data.get_data()[0]
+
+# new ref recarray for ModflowGwfdrn
+driv_rec0 = flopy.mf6.ModflowGwfdrn.stress_period_data.empty(ml,maxbound=riv_rec0.shape[0])[0]
+driv_rec0['cellid'] = riv_rec0['cellid']
+driv_rec0['elev'] = riv_rec0['stage']
+driv_rec0['cond'] = parvals.loc['criv']
+
+# reference level
+riv_ref_value = 20.6 # min(h_fs4(t))
+# fluctuations to reference level
+riv_dh = riv_ref_records.values - riv_ref_value
+
+# gen stress period data 
+driv_rec = driv_rec0.copy()
+driv_spd = {}
+for i in range(nper):
+    driv_rec['elev'] = driv_rec0['elev']+riv_dh[i]
+    driv_spd[i]=driv_rec
+
+driv = flopy.mf6.ModflowGwfdrn(ml, 
+                                maxbound=riv_rec0.shape[0],
+                                stress_period_data = driv_spd,
+                                save_flows=True,
+                                print_flows=False,
+                                print_input=False,
+                                filename = ml.name + '.driv',
+                                pname = 'driv')
+ml.remove_package('riv')
+
 # --- ghb package 
-ghb = ml.get_package('ghb_0')
-ghb_rec0 = ghb.stress_period_data.get_data()[0]
-ghb_rec0['cond'] = parvals.loc['cghb']
-ml.ghb.stress_period_data.set_data({0:ghb_rec0})
+#ghb = ml.get_package('ghb_0')
+#ghb_rec0 = ghb.stress_period_data.get_data()[0]
+#ghb_rec0['cond'] = parvals.loc['cghb']
+#ml.ghb.stress_period_data.set_data({0:ghb_rec0})
 
 # --- oc package 
 oc = ml.get_package('oc')
 
-# save every 10 stress periods 
 spd = { k:[] for k in range(0,nper)}
-for k in range(0,nper,10): spd[k]=[('HEAD','LAST'), ('BUDGET','LAST')] 
+#for k in range(0,nper,10): spd[k]=[('HEAD','LAST'), ('BUDGET','LAST')] 
 
 oc.saverecord = spd 
 
 # --- IMS package
 # loosen convergence criteria to speed up simulation
-sim.ims.outer_dvclose = 1e-2
-sim.ims.inner_dvclose = 1e-2
+sim.ims.outer_dvclose = 1e-3
+sim.ims.inner_dvclose = 1e-3
 sim.ims.print_option='summary'
 
 # ---- ic package 

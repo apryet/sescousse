@@ -108,13 +108,17 @@ with open(tpl_file, "w") as f:
 
 # add parameters 
 par = pst.add_parameters(tpl_file,pst_path='.')
-pst.rectify_pgroups()
 
-# adjust parameter bounds and values
+# adjust parameter groups, transformation, bounds and values
 par = pst.parameter_data
+par.loc[par.index,'pargp'] = pdata.loc[par.index,'pargp']
+par.loc[par.index,'partrans'] = pdata.loc[par.index,'partrans']
 par.loc[par.index,'parlbnd'] = pdata.loc[par.index,'parlbnd']
 par.loc[par.index,'parubnd'] = pdata.loc[par.index,'parubnd']
 par.loc[par.index,'parval1'] = pdata.loc[par.index,'val']
+
+# update parameter groups
+pst.rectify_pgroups()
 
 # --- process observed values and weights 
 
@@ -175,16 +179,19 @@ obs.loc[idx,'weight']=0
 
 # less weight to drain obs, anyway
 idx = obs.index.str.contains('fs')
-obs.loc[idx,'weight'] = obs.loc[idx,'weight'].div(2)
+obs.loc[idx,'weight'] = 0 # obs.loc[idx,'weight'].div(10)
 
-# less weight for ps3
-idx = obs.index.str.contains('ps3')
-obs.loc[idx,'weight']= obs.loc[idx,'weight'].div(2)
+# fix issue with ps3 (keep only fluctuations)
+idx = obs.index.str.contains('hds_otype:lst_usecol:ps3')
+obs.loc[idx,'weight']=0
 
 # --- further PEST settings 
 
+pst.pestpp_options['uncertainty']='False'
+
 # regularization settings
-pst.reg_data.phimlim = pst.nnz_obs
+#pst.reg_data.phimlim = pst.nnz_obs
+pst.reg_data.phimlim = 3e4 
 pst.reg_data.phimaccept = pst.reg_data.phimlim*1.1
 pst.reg_data.fracphim = 0.1
 pst.reg_data.wfmin = 1.0e-10

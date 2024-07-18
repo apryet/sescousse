@@ -18,11 +18,15 @@ def run_swb(clim_file='clim.csv',theta_sat = None, D_max= None, par_file=None, c
 
     # vegetation and soil parameters
     #I_max = 1 # Canopy and crop residue interception (evaporation) in mm/day
-    z = 1000 # Length of the soil profile in mm
+    z = 400 # Length of the soil profile in mm
 
     # characteristic water contents
     if theta_sat is None: 
         theta_sat = 0.40
+
+    # Maximum daily drainage rate [mm/d]
+    if D_max is None: 
+        D_max = 25 
 
     # if par_file provided, read file and set par values 
     if par_file is not None:
@@ -39,9 +43,6 @@ def run_swb(clim_file='clim.csv',theta_sat = None, D_max= None, par_file=None, c
 
     # crop coefficient 
     Kc = 1.0 # REF? 
-
-    # Maximum daily drainage rate [mm/d]
-    D_max = 25 
 
     S_max =theta_sat*z # Saturation
     FC = theta_fc*z  # Field capacity
@@ -73,7 +74,8 @@ def run_swb(clim_file='clim.csv',theta_sat = None, D_max= None, par_file=None, c
         # transpiration 
         T[t] = PET[t] * Kc * Ks
         # update soil water content 
-        S[t] = S[t-1] + P[t] - T[t] - D[t]
+        S[t] = max(S[t-1] + P[t] - T[t] - D[t],0)
+        D[t] = S[t-1] - S[t] + P[t] - T[t] 
         # overflow (added to drainage) 
         F[t] = np.maximum(S[t]-S_max,0)
         S[t] = S[t] - F[t]
