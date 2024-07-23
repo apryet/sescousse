@@ -21,10 +21,10 @@ ml = sim.get_model()
 
 # set sim start end dates 
 #start_date = pd.to_datetime('2023-07-12')
-start_date = pd.to_datetime('2023-10-15')
+start_date = pd.to_datetime('2023-10-15').date()
 #end_date = pd.to_datetime('2024-04-12')
-end_date = pd.to_datetime('2024-07-06')
-sim_dates = pd.date_range(start_date,end_date) 
+end_date = pd.to_datetime('2024-07-06').date()
+sim_dates = pd.date_range(start_date,end_date).date
 
 # --------------------------------------
 # --- load and pre-proc input data  
@@ -58,6 +58,7 @@ mf_df = mf_df.loc[mf_df.index >= stjean_df.index.min()]
 ades_file=os.path.join('..','data','BSS001VYWT.csv')
 ades_df = pd.read_csv(ades_file,header=[0],sep=',')
 ades_df.index = pd.to_datetime(ades_df.date,format='%d/%m/%Y')
+ades_df.index = ades_df.index.date
 
 # subset 
 P = stjean_df.loc[sim_dates,('Rain_mm_Tot','sum')].values
@@ -99,6 +100,10 @@ date_max = pd.to_datetime('2024-08-01')
 ax0.set_xlim(date_min,date_max)
 
 ax2.legend(loc='lower right')
+
+for ax in axs:
+    ax.axvline(start_date,ls='--',color='grey')
+    ax.axvline(end_date,ls='--',color='grey')
 
 fig.align_ylabels()
 fig.tight_layout()
@@ -195,61 +200,76 @@ drn_rec0 = drn.stress_period_data.get_data()[0]
 drn_rec0['cond'] = parvals.loc['cdrn']
 ml.drn.stress_period_data.set_data({0:drn_rec0})
 
-# --- riv package (converted as second drain package drn)
-riv = ml.get_package('riv_0')
-# original recarray ModflowGwfriv
-riv_rec0 = riv.stress_period_data.get_data()[0]
 
-# new ref recarray for ModflowGwfdrn
-driv_rec0 = flopy.mf6.ModflowGwfdrn.stress_period_data.empty(ml,maxbound=riv_rec0.shape[0])[0]
-driv_rec0['cellid'] = riv_rec0['cellid']
-driv_rec0['elev'] = riv_rec0['stage']
-driv_rec0['cond'] = parvals.loc['criv']
+# --- river network 
 
-# reference level
+## reference level
 riv_ref_value = 20.6 # min(h_fs4(t))
 
 # river level records at FS4
-riv_ref_records = levels.loc[start_date:end_date,('h','FS4')]
+riv_ref_records = obs_levels.loc[sim_dates,'FS4']
 
 # fluctuations to reference level
-riv_dh = riv_ref_records.values - riv_ref_value
+riv_dh = riv_ref_records.values - riv_ref_value 
+
+# original recarray ModflowGwfriv
+riv = ml.get_package('riv_0')
+riv_rec0 = riv.stress_period_data.get_data()[0]
+
+# approach for river network simulation 
+rivtype = 'riv'
+#rivtype = 'drn'
+
+if rivtype == 'drn':
+    hfield = 'elev'
+    # new ref recarray for ModflowGwfdrn
+    riv_rec0 = flopy.mf6.ModflowGwfdrn.stress_period_data.empty(ml,maxbound=riv_rec0.shape[0])[0]
+    riv_rec0['cellid'] = riv_rec0['cellid']
+    rivpckg = flopy.mf6.ModflowGwfdrn
+else :
+    hfield = 'stage'
+    rivpckg = flopy.mf6.ModflowGwfriv
+
+# set conductance value from par file 
+riv_rec0['cond'] = parvals.loc['criv']
 
 # gen stress period data 
-driv_spd = {}
+riv_spd = {}
 for i in range(nper):
-    driv_rec = driv_rec0.copy()
-    driv_rec['elev'] = driv_rec0['elev']+riv_dh[i]
-    driv_spd[i]=driv_rec
+    riv_rec = riv_rec0.copy()
+    riv_rec[hfield] = riv_rec0[hfield]+riv_dh[i]
+    riv_spd[i]=riv_rec
 
-driv = flopy.mf6.ModflowGwfdrn(ml, 
-                                maxbound=riv_rec0.shape[0],
-                                stress_period_data = driv_spd,
-                                save_flows=True,
-                                print_flows=False,
-                                print_input=False,
-                                filename = ml.name + '.driv',
-                                pname = 'driv')
+# remove former package 
 ml.remove_package('riv')
+# create new package 
+riv = rivpckg(ml, 
+                maxbound=riv_rec0.shape[0],
+                stress_period_data = riv_spd,
+                boundnames = True,
+                save_flows=True,
+                print_flows=False,
+                print_input=False,
+                filename = ml.name + '.riv',
+                pname = 'riv')
 
 # --- ghb package 
-
 ghb = ml.get_package('ghb_0')
 ghb_rec0 = ghb.stress_period_data.get_data()[0]
 
 # fluctuations to reference level
 ghb_dh = ades_df.F - ades_df.loc[start_date,'F'] # start_date at low flow
 ghb_dh = ghb_dh.reindex(sim_dates) # re-index with simulation dates
-dhb_dh = ghb_dh.interpolate() # gap filling by linear interpolation over simulation period
+ghb_dh = ghb_dh.interpolate() # gap filling by linear interpolation over simulation period
 
 # gen stress period data 
 ghb_spd = {}
 for i in range(nper):
     ghb_rec = ghb_rec0.copy()
     ghb_rec['bhead'] = ghb_rec0['bhead']+ghb_dh[i]
-    driv_spd[i]=ghb_rec
+    ghb_spd[i]=ghb_rec
 
-ml.ghb.stress_period_data.set_data({0:ghb_rec0})
+ml.ghb.stress_period_data.set_data(ghb_spd)
 
 # --- oc package 
 oc = ml.get_package('oc')

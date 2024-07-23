@@ -82,7 +82,7 @@ def set_mf_par_vals():
 
     # set criv
     print('Setting criv values...')
-    driv = ml.get_package('driv')
+    driv = ml.get_package('riv')
     riv_spd = driv.stress_period_data.get_data()
     for i in riv_spd.keys():
         riv_spd[i]['cond'] = parvals.loc['criv']

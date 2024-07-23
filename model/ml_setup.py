@@ -23,7 +23,6 @@ m.modelgrid.write_shapefile('postproc/shps/grid.shp')
 sim = flopy.mf6.MFSimulation.load(wd)
 ml = sim.get_model('sescousse')
 
-
 # set k 
 ml.npf.k.set_data(parvals.loc['k'])
 

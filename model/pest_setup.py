@@ -182,8 +182,8 @@ idx = obs.index.str.contains('fs')
 obs.loc[idx,'weight'] = 0 # obs.loc[idx,'weight'].div(10)
 
 # fix issue with ps3 (keep only fluctuations)
-idx = obs.index.str.contains('hds_otype:lst_usecol:ps3')
-obs.loc[idx,'weight']=0
+#idx = obs.index.str.contains('hds_otype:lst_usecol:ps3')
+#obs.loc[idx,'weight']=0
 
 # --- further PEST settings 
 
