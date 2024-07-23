@@ -6,7 +6,7 @@ import flopy
 import swb
 
 # --------------------------------------
-# ---- settings and data      ----------
+# ---- settings     ----------
 # --------------------------------------
 
 # steady model dir
@@ -26,25 +26,21 @@ start_date = pd.to_datetime('2023-10-15')
 end_date = pd.to_datetime('2024-07-06')
 sim_dates = pd.date_range(start_date,end_date) 
 
-# load river level recorded at FS4
+# --------------------------------------
+# --- load and pre-proc input data  
+# --------------------------------------
+
+# --- save observed levels over simulation period
 levels_file = os.path.join('..','data','levels_daily.csv')
 levels = pd.read_csv(levels_file,header=[0,1],index_col=0,parse_dates=True)
-riv_ref_records = levels.loc[start_date:end_date,('h','FS4')]
-
-# plot to think about the consistency of all that 
-df = levels.xs('h',axis=1)
-ax = df[['PS1','PS2','PS3','FS4']].plot()
-ax.set_xlim(start_date,end_date)
-ax.set_ylim(19.5,22.5)
-ax.axhline((17.2+21.9)/2,ls='--',color='grey')
+obs_locs = ['FS1','FS2','FS3','FS4','PS1','PS2','PS3']
+obs_levels = levels.xs('h',axis=1)[obs_locs]
+obs_levels.index = obs_levels.index.date
+obs_levels.to_csv(os.path.join('ml_transient','obs_levels.csv'))
 
 # load initial parameter values 
 pdata = pd.read_excel(os.path.join('..','data','par.xlsx'),index_col='name')
 parvals = pdata['val']
-
-# --------------------------------------
-# --- setup recharge model 
-# --------------------------------------
 
 # Weather data 
 stjean_file=os.path.join('..','data','stjean_daily.csv')
@@ -54,6 +50,14 @@ stjean_df = pd.read_csv(stjean_file, header=[0,1], index_col=0, parse_dates=True
 mf_file=os.path.join('..','data','ETP_daily.csv')
 mf_df = pd.read_csv(mf_file,parse_dates=True,header=[0],sep=';')
 mf_df.index = pd.to_datetime(mf_df.date,format='%d/%m/%Y')
+# subset to period of interest  
+mf_df = mf_df.loc[mf_df.index >= stjean_df.index.min()]
+
+# Piezometric records from ADES
+# https://ades.eaufrance.fr/Fiche/PtEau?code=07545X0029/F
+ades_file=os.path.join('..','data','BSS001VYWT.csv')
+ades_df = pd.read_csv(ades_file,header=[0],sep=',')
+ades_df.index = pd.to_datetime(ades_df.date,format='%d/%m/%Y')
 
 # subset 
 P = stjean_df.loc[sim_dates,('Rain_mm_Tot','sum')].values
@@ -62,6 +66,80 @@ PET = mf_df.loc[sim_dates,'ETP'].values
 # save to single clim file 
 clim_df = pd.DataFrame({'P':P,'PET':PET},index=sim_dates)
 clim_df.to_csv(os.path.join(transient_dir,'clim.csv'))
+
+# --------------------------------------
+# ---- plot input data     ----------
+# --------------------------------------
+
+fig,axs = plt.subplots(3,1,sharex=True, figsize=(10,6)) #A4 paper size
+
+ax0, ax1, ax2 = axs
+
+ax0.bar(stjean_df.index, stjean_df.xs('Rain_mm_Tot',axis=1)['sum'], color='darkblue', label='P')
+ax0.bar(mf_df.index, mf_df.ETP, color='tan', label='PET',alpha=0.8)
+ax0.set_ylabel('mm/d')
+ax0.legend(loc='upper left')
+
+for pid in ['FS1','FS2','FS3','FS4']:
+    obs_levels[pid].plot(ax=ax1,label=pid)
+
+ax1.set_ylabel('m NGF')
+ax1.legend(loc='upper right')
+
+
+for pid in ['PS1','PS2','PS3']:
+    obs_levels[pid].plot(ax=ax2,label=pid)
+
+ax2.set_ylabel('m NGF')
+ax2.legend(loc='upper right')
+
+date_min, date_max = ax0.get_xlim()
+date_min = pd.to_datetime('2023-07-01')
+date_max = pd.to_datetime('2024-08-01')
+ax0.set_xlim(date_min,date_max)
+
+ax2.legend(loc='lower right')
+
+fig.align_ylabels()
+fig.tight_layout()
+
+fig.savefig(os.path.join('fig','obs_vars.pdf'),dpi=300)
+
+
+# -----------------------------------------------------------
+# ---- investigate regional hydraulic gradient     ----------
+# -----------------------------------------------------------
+
+
+bheads_df = pd.merge( obs_levels[['PS1','PS2']] ,  ades_df['F'], 
+                     left_index=True,right_index=True, 
+                     how='left')
+
+fig,axs = plt.subplots(3,1,sharex=True, figsize=(10,6)) #A4 paper size
+ax0, ax1, ax2 = axs
+
+bheads_df[['PS1','PS2','F']].plot(ax=ax0)
+
+bheads_df['PS1m'] = bheads_df.PS1 - bheads_df.PS1.mean()
+bheads_df['PS2m'] = bheads_df.PS2 - bheads_df.PS2.mean()
+bheads_df['Fm'] = bheads_df.F - bheads_df.F.mean()
+
+bheads_df[['PS1m','PS2m','Fm']].plot(ax=ax1)
+
+dist_PS1_F = 5300 # m 
+bheads_df['gradh'] = (bheads_df.PS1 - bheads_df.F) /dist_PS1_F
+bheads_df['gradh'].plot(ax=ax2)
+ax2.set_ylim(0.0005,0.0007)
+
+fig.align_ylabels()
+fig.tight_layout()
+
+fig.savefig(os.path.join('fig','gradh.pdf'),dpi=300)
+
+
+# --------------------------------------
+# --- setup recharge model 
+# --------------------------------------
 
 swb.run_swb(theta_sat = parvals.loc['tsat'],
             D_max= parvals.loc['dmax'],
@@ -130,13 +208,17 @@ driv_rec0['cond'] = parvals.loc['criv']
 
 # reference level
 riv_ref_value = 20.6 # min(h_fs4(t))
+
+# river level records at FS4
+riv_ref_records = levels.loc[start_date:end_date,('h','FS4')]
+
 # fluctuations to reference level
 riv_dh = riv_ref_records.values - riv_ref_value
 
 # gen stress period data 
-driv_rec = driv_rec0.copy()
 driv_spd = {}
 for i in range(nper):
+    driv_rec = driv_rec0.copy()
     driv_rec['elev'] = driv_rec0['elev']+riv_dh[i]
     driv_spd[i]=driv_rec
 
@@ -151,10 +233,23 @@ driv = flopy.mf6.ModflowGwfdrn(ml,
 ml.remove_package('riv')
 
 # --- ghb package 
-#ghb = ml.get_package('ghb_0')
-#ghb_rec0 = ghb.stress_period_data.get_data()[0]
-#ghb_rec0['cond'] = parvals.loc['cghb']
-#ml.ghb.stress_period_data.set_data({0:ghb_rec0})
+
+ghb = ml.get_package('ghb_0')
+ghb_rec0 = ghb.stress_period_data.get_data()[0]
+
+# fluctuations to reference level
+ghb_dh = ades_df.F - ades_df.loc[start_date,'F'] # start_date at low flow
+ghb_dh = ghb_dh.reindex(sim_dates) # re-index with simulation dates
+dhb_dh = ghb_dh.interpolate() # gap filling by linear interpolation over simulation period
+
+# gen stress period data 
+ghb_spd = {}
+for i in range(nper):
+    ghb_rec = ghb_rec0.copy()
+    ghb_rec['bhead'] = ghb_rec0['bhead']+ghb_dh[i]
+    driv_spd[i]=ghb_rec
+
+ml.ghb.stress_period_data.set_data({0:ghb_rec0})
 
 # --- oc package 
 oc = ml.get_package('oc')
@@ -179,12 +274,7 @@ ss_hdata = ss_head.get_alldata()[0]
 # replace initial condition with pre-computed steady state
 ml.ic.strt.set_data(ss_hdata)  
 
-# --- save observed levels over simulation period
-obs_locs = ['FS1','FS2','FS3','FS4','PS1','PS2','PS3']
-obs_levels = levels.xs('h',axis=1)[obs_locs]
-obs_levels.index = obs_levels.index.date
-obs_levels = obs_levels.loc[start_date:end_date]
-obs_levels.to_csv(os.path.join('ml_transient','obs_levels.csv'))
+
 
 # -- write simulation
 sim.set_sim_path(transient_dir)

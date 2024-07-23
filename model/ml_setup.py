@@ -8,6 +8,10 @@ from mfsetup import MF6model
 
 wd = os.getcwd()
 
+# --- load initial parameter values and update parameter values 
+pdata = pd.read_excel(os.path.join('..','data','par.xlsx'),index_col='name')
+parvals = pdata['val']
+
 # generate model 
 m = MF6model.setup_from_yaml('sescousse.yml',verbose=True)
 m.write_input()
@@ -19,9 +23,6 @@ m.modelgrid.write_shapefile('postproc/shps/grid.shp')
 sim = flopy.mf6.MFSimulation.load(wd)
 ml = sim.get_model('sescousse')
 
-# --- load initial parameter values and update parameter values 
-pdata = pd.read_excel(os.path.join('..','..','data','par.xlsx'),index_col='name')
-parvals = pdata['val']
 
 # set k 
 ml.npf.k.set_data(parvals.loc['k'])
@@ -32,13 +33,11 @@ drn_rec0 = drn.stress_period_data.get_data()[0]
 drn_rec0['cond'] = parvals.loc['cdrn']
 ml.drn.stress_period_data.set_data({0:drn_rec0})
 
-'''
 # set criv
 riv = ml.get_package('riv_0')
 riv_rec0 = riv.stress_period_data.get_data()[0]
 riv_rec = riv_rec0.copy()
 riv_rec['cond'] = parvals.loc['criv']
-'''
 
 # ghb
 print('Setting cghb values...')
