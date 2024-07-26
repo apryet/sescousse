@@ -16,6 +16,7 @@ ml.oc.saverecord = {k:[('HEAD','LAST'), ('BUDGET','LAST')]for k in range(nper)}
 sim.write_simulation()
 success, buff = sim.run_simulation(report=True)
 
+
 # load idomain raster
 izone_file = os.path.join('..','..','gis','idomain.tif') 
 izone_rast = flopy.utils.Raster.load(izone_file)
@@ -74,12 +75,12 @@ for n,i in enumerate(range(0,hds.shape[0],1)):
     fig = plt.figure(figsize=(10, 10))
     ax = fig.add_subplot(1, 1, 1, aspect="equal")
     modelmap = flopy.plot.PlotMapView(model=ml, ax=ax)
-    #ax.set_xlim(385600., 387500.)
+    ax.set_xlim(385600., 387500.)
     ax.set_title('Piézométrie du ' + dates_out[i].strftime("%d-%m-%Y"))
     # masked 2D head array
     hds2d = hds[i,0,:,:]
-    #hds2d[izone < 2]=np.nan
-    pa = modelmap.plot_array(hds2d, vmin=20.5,vmax=22)
+    hds2d[izone < 2]=np.nan
+    pa = modelmap.plot_array(hds2d) #, vmin=20.5,vmax=22)
     cb = plt.colorbar(pa, shrink=0.5)
     cb.set_label('m NGF')
     fig.savefig(os.path.join('fig',f'h_{n}.png'))

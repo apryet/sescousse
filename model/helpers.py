@@ -61,17 +61,18 @@ def set_mf_par_vals():
 
     # set cghb
     print('Setting cghb values...')
-    ghb_rec = ml.ghb.stress_period_data.get_data()[0]
-    # western bc
-    idx = ghb_rec['boundname']=='w'
-    ghb_rec['cond'][idx] = parvals.loc['cghbw']
-    ghb_rec['bhead'][idx] = parvals.loc['hghbw']
-    # eastern bc
-    idx = ghb_rec['boundname']=='e'
-    ghb_rec['cond'][idx] = parvals.loc['cghbe']
-    ghb_rec['bhead'][idx] = parvals.loc['hghbe']
+    ghb_spd = ml.ghb.stress_period_data.get_data()
+    for i in ghb_spd.keys():
+        ghb_rec = ghb_spd[i]
+        # western bc
+        idx = ghb_rec['boundname']=='w'
+        ghb_rec['cond'][idx] = parvals.loc['cghbw']
+        # eastern bc
+        idx = ghb_rec['boundname']=='e'
+        ghb_rec['cond'][idx] = parvals.loc['cghbe']
+
     # update values 
-    ml.ghb.stress_period_data.set_data({0:ghb_rec})
+    ml.ghb.stress_period_data.set_data(ghb_spd)
 
     # set cdrn
     print('Setting cdrn values...')
@@ -82,12 +83,12 @@ def set_mf_par_vals():
 
     # set criv
     print('Setting criv values...')
-    driv = ml.get_package('riv')
-    riv_spd = driv.stress_period_data.get_data()
+    riv = ml.get_package('riv')
+    riv_spd = riv.stress_period_data.get_data()
     for i in riv_spd.keys():
         riv_spd[i]['cond'] = parvals.loc['criv']
 
-    driv.stress_period_data.set_data(riv_spd)
+    riv.stress_period_data.set_data(riv_spd)
 
     print('Writing new model files...')
     sim.write_simulation()

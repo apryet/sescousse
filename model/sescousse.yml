@@ -21,7 +21,6 @@ model:
     - ic
     - oc
     - npf 
-      #   - chd
     - rch
     - evt
     - ghb
@@ -109,22 +108,6 @@ ghb:
     cond: 4.e-2 # cond = T
 
 
-chd:
-  options:
-    save_flows: True
-  source_data:
-    shapefile:
-      filename: '../gis/chd_east.shp'
-      id_column: 'id'
-      all_touched: True
-    csvfile:
-      filename: '../data/ref_heads.csv'
-      id_column: 'id'
-      head_column: 'h'
-      datetime_column: 'start_datetime'
-      end_datetime_column: 'end_datetime'
-      length_units: 'meters'
-
 riv:
   options:
     save_flows: True
@@ -134,13 +117,13 @@ riv:
       id_column: 'id'
       boundname_column: 'type'
     stage:
-      filename: '../gis/h_riv.tif'
+      filename: '../gis/h_riv.tif' # should match values in riv_data.xlsx
       elevation_units: 'meters'
       resample_method: 'nearest'
       stat: 'mean'
     cond: 1.e-3 # m/s
   mfsetup_options:
-    default_rbot_thickness: 0.001 # small value to avoid leakage 
+    default_rbot_thickness: 0.1 # small value to avoid excessive leakage 
 
 drn:
   options:
@@ -151,7 +134,7 @@ drn:
       id_column: 'id'
       boundname_column: 'type'
     elev:
-      filename: '../gis/dtm_no_drn_ext_trim_filt_m1m.tif'
+      filename: '../gis/dtm_no_drn_ext_trim_filt_m75cm.tif'
       resample_method : 'nearest'
       stat: 'mean' 
       elevation_units: 'meters'
