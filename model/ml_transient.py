@@ -30,6 +30,11 @@ sim_dates = pd.date_range(start_date,end_date).date
 # --- load and pre-proc input data  
 # --------------------------------------
 
+# load dtm raster
+dtm_file = os.path.join('..','gis','dtm_no_drn_ext_trim_filt.tif') 
+dtm_rast = flopy.utils.Raster.load(dtm_file)
+dtm = dtm_rast.resample_to_grid(ml.modelgrid, band=1, method='nearest')
+
 # --- save observed levels over simulation period
 levels_file = os.path.join('..','data','levels_daily.csv')
 levels = pd.read_csv(levels_file,header=[0,1],index_col=0,parse_dates=True)
@@ -163,7 +168,7 @@ evt[0] = 0
 # set start date and stress periods
 tdis = sim.get_package('tdis')
 tdis.start_date_time.set_data(start_date.isoformat()) #ISO format !
-nper = (end_date - start_date).days
+nper = (end_date - start_date).days+1
 tdis.nper = nper
 perlen = 86400 # s
 tdis.perioddata = [ [perlen,1,1] for _ in range(nper)]
@@ -173,12 +178,18 @@ rcha = ml.get_package('rcha_0')
 rcha.recharge = {i:rech[i] for i in range(nper)}
 
 # --- evt package (aquifer root water uptake)
+
+evt_surf = dtm - 1.20 # evt surface elevation
+evt_extdp = 0.60 # extinction depth from evt_surf 
+
 evta = flopy.mf6.ModflowGwfevta(
     ml,
     pname="evt",
     save_flows=True,
-    surface = 5, # non-limited evt elevation 
-    depth = -20, # exctinction elevation 
+    #surface = 5, # non-limited evt elevation 
+    #depth = -20, # exctinction elevation 
+    surface = evt_surf, # non-limited evt elevation 
+    depth = evt_extdp, # exctinction elevation 
     rate = {i:evt[i] for i in range(nper)}
 )
 

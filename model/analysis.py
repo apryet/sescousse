@@ -4,23 +4,31 @@ import pandas as pd
 from matplotlib import pyplot as plt
 import flopy
 
+# plot settings
+plt.rc('font', family='serif', size=9)
+sgcol_width = 9/2.54
+mdcol_width = 14/2.54
+dbcol_width = 19/2.54
+
 
 # load simulation data 
 sim = flopy.mf6.MFSimulation.load(sim_ws='.')
 ml = sim.get_model()
 ml.modelgrid.set_coord_info(crs=2154)
 nper = sim.tdis.nper.data
+delr = ml.dis.delr[0]
+delc = ml.dis.delc[0]
 
 # set output control and re-reun model 
 ml.oc.saverecord = {k:[('HEAD','LAST'), ('BUDGET','LAST')]for k in range(nper)}
 sim.write_simulation()
 success, buff = sim.run_simulation(report=True)
 
-
 # load idomain raster
-izone_file = os.path.join('..','..','gis','idomain.tif') 
-izone_rast = flopy.utils.Raster.load(izone_file)
-izone = izone_rast.resample_to_grid(ml.modelgrid, band=1, method='nearest')
+idomain_file = os.path.join('..','..','gis','idomain.tif') 
+idomain_rast = flopy.utils.Raster.load(idomain_file)
+idomain = idomain_rast.resample_to_grid(ml.modelgrid, band=1, method='nearest')
+idomain_3d = np.stack([idomain]*nper) # transient time domain 
 
 # load dtm raster
 dtm_file = os.path.join('..','..','gis','dtm_no_drn_ext_trim_filt.tif') 
@@ -33,6 +41,9 @@ top = ml.dis.top.data
 # load swb 
 swb = pd.read_csv(os.path.join('swb_vars.csv'),index_col=0,parse_dates=True)
 
+# load cbc 
+cbc = ml.output.budget()
+
 # load head data 
 nper = sim.tdis.nper.data
 hdfile = ml.output.head()
@@ -42,7 +53,146 @@ times = hdfile.get_times()
 
 # start date
 start_date= pd.to_datetime(sim.tdis.start_date_time.get_data())
-dates_out  = (start_date + pd.to_timedelta(times,'s')).date
+end_date = pd.to_datetime(start_date+ pd.to_timedelta(nper-1,'d'))
+dates_out  = pd.date_range(start_date,end_date).date
+# -------------------------------------
+#--- drn records 
+# -------------------------------------
+
+# load drain flow 
+zone_surf = delr*delc*(idomain>1).sum()
+drnobs = pd.read_csv('sescousse.drn.obs.output.csv',index_col=0)
+drnobs.index = dates_out
+drnobs['flow']= drnobs.DRN*(-1/zone_surf*1000*86400) # m3/s to mm/d
+
+drnb = ml.output.budget().get_data(text='DRN')
+drnf_records = -1*np.array([ drnb[i]['q'].sum() for i in range(nper)])/zone_surf*1000*86400 # m3/s to mm/d
+
+fig,axs = plt.subplots(3,1,sharex=True, figsize=(10,6)) #A4 paper size
+ax0, ax1, ax2 = axs
+ax0.bar(swb.index,swb.R,color='darkgrey',label='Recharge')
+ax0.set_ylabel('mm/d')
+#ax1.bar(dates_out, drnf_records, color='orange',label='Drainage CBC',alpha=0.8)
+ax1.bar(dates_out, drnobs.flow, color='tan',label='Drainage',alpha=0.8)
+ax1.set_ylabel('mm/d')
+
+for loc in ['PS1','PS2','PS3']:
+    hsim.loc[:,loc].plot(ax=ax2,label=loc)
+
+ax2.set_ylabel('m NGF')
+
+ax2.set_xlim(hsim.index.min(),hsim.index.max())
+
+fig.align_ylabels()
+lgd = [ax.legend(loc='upper left') for ax in [ax0,ax1,ax2]]
+fig.tight_layout()
+fig.savefig(os.path.join('fig','sim_records.pdf'),dpi=300)
+
+# -------------------------------------
+#--- evt records 
+# -------------------------------------
+
+# load actual evt from cbc 
+evtb = ml.output.budget().get_data(text='EVT',full3D=True) # so slow !
+evtba = np.stack(evtb)[:,0,:,:]
+
+# mask out of area of interest 
+mevtba = np.ma.masked_where(idomain_3d<3, evtba)
+
+# time series of mean evt
+evt_records = -1*np.array(mevtba.mean(axis=(1,2))/(delr*delc)*86400*1000) # m3/s to mm/d
+
+swb['ARU'] = evt_records
+
+# potential evapotranspiration at weekly 
+
+# aggregate by 7-days 
+wswb = swb.groupby(pd.Grouper(freq='7D')).sum()
+bwdth = 5
+
+fig,axs = plt.subplots(3,1,sharex=True, figsize=(dbcol_width,dbcol_width)) 
+ax0, ax1, ax2 = axs
+
+# precipitations
+ax0.bar(wswb.index, wswb.P, width=bwdth,color='darkblue',label='Précipitations')
+ax0.set_ylabel('P [mm/semaine]')
+ax0.legend(loc='upper right')
+
+# potential evapotranspiration
+ax1.bar(wswb.index, wswb.PET, width=bwdth, color='tan', label='Evapotranspiration potentielle')
+ax1.bar(wswb.index, wswb['T'], width=bwdth, color='olive', label='Evapotranspiration depuis le sol')
+ax1.bar(wswb.index, wswb['ARU'], width=bwdth, bottom = wswb['T'], color='darkgreen', label='Prélèvement racinaire en aquifère')
+ax1.set_ylabel('(P)ET [mm/semaine]')
+ax1.legend(loc='upper left')
+
+# recharge
+ax2.bar(wswb.index, wswb.R, width=bwdth, color='darkgrey',label='Recharge de l\'aquifère')
+ax2.set_ylabel('Recharge [mm/semaine]')
+ax2.legend()
+
+fig.tight_layout()
+fig.savefig(os.path.join('fig','wswb_pet_et_ru.pdf'),dpi=300)
+
+# -------------------------------------
+#--- indicators
+# -------------------------------------
+ 
+# critical depths
+depth_w = 0.4 # water excess 
+depth_d = 1.5 # water stress
+
+# critical levels 
+z_w = dtm - depth_w
+z_d = dtm - depth_d
+
+# masked head array over area of interest (idomain >1)
+mhds = np.ma.masked_where(idomain_3d<3, hds[:,0,:,:])
+
+# spatially averaged dtm 
+mdtm = np.ma.masked_where(idomain<2, dtm)
+zm = mdtm.mean()
+
+# spatially averaged gw levels 
+hm = mhds.mean(axis=(1,2))
+
+# records of spatially averaged water excess/stress
+w_records = ((mhds-z_w)*(mhds>z_w)).sum(axis=(1,2))/(mhds>z_w).sum()*1000
+d_records = ((mhds-z_d)*(mhds<z_d)).sum(axis=(1,2))/(mhds<z_d).sum()*1000
+
+# cumulated water excess/stress 
+w = w_records.sum()
+d = d_records.sum()
+
+# figure of spatially averaged levels (gw, wet, dry critical levels)
+fig,axs =plt.subplots(2,1,sharex=True,figsize=(dbcol_width,dbcol_width))
+
+ax0,ax1 = axs
+# gw level
+ax0.plot(dates_out,hm,label='Groundwater level (spatially averaged)',color='k')
+# surface level
+ax0.axhline(zm,color='darkgrey',ls='--')
+ax0.text(dates_out[-50],zm+0.05,'Surface level',color='darkgrey')
+# wet critical level
+ax0.axhline(zm-depth_w,color='darkblue',ls=':')
+ax0.text(dates_out[-50],zm-depth_w+0.05,'Wet depth',color='darkblue')
+# dry critical level 
+ax0.axhline(zm-depth_d,color='darkorange',ls=':')
+ax0.text(dates_out[-50],zm-depth_d+0.05,'Dry depth',color='darkorange')
+
+ax0.legend(loc='upper left')
+ymin,ymax=ax0.get_ylim()
+ax0.set_ylim(ymin,ymax+0.20)
+ax0.set_ylabel('Elevation [m NGF]')
+
+ax1.plot(dates_out,w_records,color='darkblue',label='Water excess')
+ax1.plot(dates_out,d_records,color='darkorange',label='Water deficit')
+ax1.set_ylabel('Water excess / deficit [mm]')
+ax1.legend()
+
+fig.tight_layout()
+
+fig.savefig(os.path.join('fig','critical_levels_mean_records.pdf'),dpi=300)
+
 
 # -------------------------------------
 #---  x-section 
@@ -70,6 +220,11 @@ hdfile.to_shapefile(head_shpfile,kstpkper=(0,0))
 #---  maps of groundwater head
 # -------------------------------------
 
+hmaps_dir = os.path.join('fig','hmaps')
+
+if not os.path.exists(hmaps_dir):
+    os.mkdir(hmaps_dir)
+
 # 2D map of gw heads 
 for n,i in enumerate(range(0,hds.shape[0],1)):
     fig = plt.figure(figsize=(10, 10))
@@ -79,19 +234,25 @@ for n,i in enumerate(range(0,hds.shape[0],1)):
     ax.set_title('Piézométrie du ' + dates_out[i].strftime("%d-%m-%Y"))
     # masked 2D head array
     hds2d = hds[i,0,:,:]
-    hds2d[izone < 2]=np.nan
+    hds2d[idomain < 2]=np.nan
     pa = modelmap.plot_array(hds2d) #, vmin=20.5,vmax=22)
     cb = plt.colorbar(pa, shrink=0.5)
     cb.set_label('m NGF')
-    fig.savefig(os.path.join('fig',f'h_{n}.png'))
+    fig.savefig(os.path.join(hmaps_dir,f'h_{n}.png'))
     plt.close()
 
-convert 'h_%d.png[0-264]' -scale 1066x800 -delay 20 -coalesce -layers Optimize -fuzz 2% +dither hmap.gif
-
-
+'''
+convert 'h_%d.png[0-265]' -scale 1066x800 -delay 20 -coalesce -layers Optimize -fuzz 2% +dither hmap.gif
+'''
 # -------------------------------------
 #---  map of groundwater depth
 # -------------------------------------
+
+gwdmaps_dir = os.path.join('fig','gwdmaps')
+
+if not os.path.exists(gwdmaps_dir):
+    os.mkdir(gwdmaps_dir)
+
 
 gwd = dtm - hds
 
@@ -103,51 +264,17 @@ for n,i in enumerate(range(0,hds.shape[0],1)):
     ax.set_xlim(385600., 387500.)
     ax.set_title('Profondeur nappe / sol ' + dates_out[i].strftime("%d-%m-%Y"))
     gwd2d = gwd[i,0,:,:]
-    gwd2d[izone < 2]=np.nan
+    gwd2d[idomain < 2]=np.nan
     pa = modelmap.plot_array(gwd2d, vmin=0,vmax=2,cmap='viridis')
     cb = plt.colorbar(pa, shrink=0.5)
     cb.set_label('m NGF')
-    fig.savefig(os.path.join('fig',f'gwd_{n}.png'))
+    fig.savefig(os.path.join(gwdmaps_dir,f'gwd_{n}.png'))
     plt.close()
 
-
-convert 'gwd_%d.png[0-264]' -scale 1066x800 -delay 20 -coalesce -layers Optimize -fuzz 2% +dither gwdmap.gif
-
-# -------------------------------------
-#--- drn records 
-# -------------------------------------
-
-# load drain flow 
-zone_surf = ml.dis.delc[0]*ml.dis.delr[0]*(izone==2).sum()
-drnobs = pd.read_csv('sescousse.drn.obs.output.csv',index_col=0)
-drnobs.index = dates_out
-drnobs['flow']= drnobs.DRN*(-1/zone_surf*1000*86400) # m3/s to mm/d
-
 '''
-cbc = ml.output.budget()
-drnb = ml.output.budget().get_data(text='DRN')
-drnf_records = -1*np.array([ drnb[i]['q'].sum() for i in range(nper)])/zone_surf*1000*86400 # m3/s to mm/d
+convert 'gwd_%d.png[0-265]' -scale 1066x800 -delay 20 -coalesce -layers Optimize -fuzz 2% +dither gwdmap.gif
 '''
 
-fig,axs = plt.subplots(3,1,sharex=True, figsize=(10,6)) #A4 paper size
-ax0, ax1, ax2 = axs
-ax0.bar(swb.index,swb.R,color='darkgrey',label='Recharge')
-ax0.set_ylabel('mm/d')
-#ax1.bar(dates_out, drnf_records, color='tan',label='Drainage CBC',alpha=0.8)
-ax1.bar(dates_out, drnobs.flow, color='tan',label='Drainage',alpha=0.8)
-ax1.set_ylabel('mm/d')
-
-for loc in ['PS1','PS2','PS3']:
-    hsim.loc[:,loc].plot(ax=ax2,label=loc)
-
-ax2.set_ylabel('m NGF')
-
-ax2.set_xlim(hsim.index.min(),hsim.index.max())
-
-fig.align_ylabels()
-lgd = [ax.legend(loc='upper left') for ax in [ax0,ax1,ax2]]
-fig.tight_layout()
-fig.savefig(os.path.join('fig','sim_records.pdf'),dpi=300)
 
 # -------------------------------------
 #--- 3D surface plot 
@@ -155,6 +282,11 @@ fig.savefig(os.path.join('fig','sim_records.pdf'),dpi=300)
 
 X = ml.modelgrid.xcellcenters
 Y = ml.modelgrid.ycellcenters
+
+surfmaps_dir = os.path.join('fig','surfmaps')
+
+if not os.path.exists(surfmaps_dir):
+    os.mkdir(surfmaps_dir)
 
 fig, ax = plt.subplots(1,1,figsize=(12,12),subplot_kw={"projection": "3d"})
 ax.view_init(elev=15., azim=-148)
@@ -172,29 +304,9 @@ for i,n in enumerate(range(0,nper,1)):
     if i==0 : 
         cbar = fig.colorbar(surf, shrink=0.3, aspect=10)
         cbar.set_label('h [m NGF]')
-    fig.savefig(os.path.join(sim_dir,'fig',f'hsurf_{i}.png'),dpi=128)
-
-convert 'hsurf_%d.png[0-264]' -scale 1066x800 -delay 20 -coalesce -layers Optimize -fuzz 2% +dither hsurf.gif
-
-
+    fig.savefig(os.path.join(surfmaps_dir,f'hsurf_{i}.png'),dpi=128)
 
 '''
-# zone budget 
-zarr = np.zeros(ml.modelgrid.shape, dtype=int)
-idx = (X > 385600) & (X < 387500)
-idx = idx.reshape(zarr.shape)
-zarr[idx]=1
-zonbud = ml.output.zonebudget(zarr)
-
-
-
-# export simulated heads to shapefile 
-flopy.export.shapefile_utils.write_grid_shapefile('heads.shp',
-                                                  ml.modelgrid,
-                                                  {'hmin':hds.min(axis=0)[0,:,:],
-                                                   'hmax':hds.max(axis=1)[0,:,:]},
-                                                  crs='epsg:2154',
-                                                  )
-
-
+convert 'hsurf_%d.png[0-265]' -scale 1066x800 -delay 20 -coalesce -layers Optimize -fuzz 2% +dither hsurf.gif
 '''
+

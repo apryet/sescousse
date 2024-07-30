@@ -6,6 +6,12 @@ import flopy
 import mpl_toolkits.mplot3d.axes3d as p3
 from matplotlib import cm
 
+# plot settings
+plt.rc('font', family='serif', size=9)
+sgcol_width = 9/2.54
+mdcol_width = 14/2.54
+dbcol_width = 19/2.54
+
 # load simulation data 
 sim_dir = '.'
 sim = flopy.mf6.MFSimulation.load(sim_ws=sim_dir)
@@ -30,41 +36,49 @@ if not os.path.exists(fig_dir):
 # soil water budget 
 # -----------------------------------------------------------
 
-fig,axs = plt.subplots(3,1,sharex=True, figsize=(10,6)) #A4 paper size
+fig,axs = plt.subplots(4,1,sharex=True, figsize=(10,6)) #A4 paper size
 
-ax0, ax1, ax2 = axs
+ax0, ax1, ax2, ax3 = axs
 
-ax0.bar(swb.index, swb.PET, color='tan', label='PET')
-ax0.bar(swb.index, swb.RU, color='darkgreen', label='Groundwater uptake')
-ax0.set_ylabel('(P)ET mm/d')
+# precipitations
+ax0.bar(swb.index, swb.P,color='darkblue',label='Precipitations')
+ax0.set_ylabel('P [mm/d]')
+ax0.legend(loc='upper right')
 
-ax0.legend(loc='upper left')
-
-twax0 = ax0.twinx()
-twax0.bar(swb.index, swb.P,color='darkblue',label='Rainfall')
-twax0.invert_yaxis()
-twax0.set_ylabel('P [mm/d]')
-twax0.legend(loc='upper right')
-
-ax1.bar(swb.index,swb.R,color='darkgrey',label='Recharge')
-ax1.set_ylabel('mm/d')
-
+# potential evapotranspiration
+ax1.bar(swb.index, swb.PET, color='tan', label='PET')
+ax1.bar(swb.index, swb.RU, color='darkgreen', label='Groundwater uptake')
+ax1.set_ylabel('(P)ET mm/d')
 ax1.legend(loc='upper left')
 
+'''
+# secondary, downward axis
 twax1 = ax1.twinx()
-twax1.plot(swb.index,swb.S,color='blue',label='Soil water storage')
-twax1.set_ylabel('mm')
-
+twax1.bar(swb.index, swb.P,color='darkblue',label='Rainfall')
+twax1.invert_yaxis()
+twax1.set_ylabel('P [mm/d]')
 twax1.legend(loc='upper right')
+'''
+
+ax2.bar(swb.index,swb.R,color='darkgrey',label='Recharge')
+ax2.set_ylabel('mm/d')
+lhr,llr = ax2.get_legend_handles_labels()
+
+twax2 = ax2.twinx()
+twax2.plot(swb.index,swb.S,color='blue',label='Soil water storage')
+twax2.set_ylabel('mm')
+lhs,lls = twax2.get_legend_handles_labels()
+
+ax2.legend(lhr+lhs,llr+lls,loc='upper right')
 
 for pid in ['PS1','PS2','PS3']:
-    hobs[pid].plot(ax=ax2,label=pid)
+    hobs[pid].plot(ax=ax3,label=pid)
 
-ax2.set_ylabel('m NGF')
+ax3.set_ylabel('m NGF')
 
-ax2.set_xlim(swb.index.min(),swb.index.max())
+ax3.set_xlim(swb.index.min(),swb.index.max())
 
-ax2.legend(loc='upper left')
+ax3.legend(loc='upper left')
 
 fig.align_ylabels()
 fig.tight_layout()

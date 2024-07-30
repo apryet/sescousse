@@ -91,5 +91,10 @@ def run_swb(clim_file='clim.csv',theta_sat = None, D_max= None, par_file=None, c
     swb_df.index.name = 'date'
     swb_df.to_csv(os.path.join(cwd,'swb_vars.csv'))
 
+    # save cumulative flows (to be used as predictions)
+    swb_cum = pd.DataFrame(swb_df[['T','R','RU']].sum()).T
+    swb_cum.index.name = 'time'
+    swb_cum.to_csv(os.path.join(cwd,'swb_cum.csv'))
+
 
 

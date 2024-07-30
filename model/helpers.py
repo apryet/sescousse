@@ -93,3 +93,16 @@ def set_mf_par_vals():
     print('Writing new model files...')
     sim.write_simulation()
 
+
+def write_tot_drn(ws='.'):
+    import os 
+    import pandas as pd 
+    zone_surf = 1071422. # model domain surface (area of interest only), m2
+    drnobs = pd.read_csv(os.path.join(ws,'sescousse.drn.obs.output.csv'),index_col=0)
+    drnobs['flow']= drnobs.DRN*(-1/zone_surf*1000*86400) # m3/s to mm/d
+    tot_drn = drnobs.flow.sum()
+    tot_drn_df = pd.DataFrame({'tot_drn_mm':[tot_drn]})
+    tot_drn_df.index.name = 'time'
+    tot_drn_df.to_csv(os.path.join(ws,'tot_drn.csv'))
+
+

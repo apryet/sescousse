@@ -71,13 +71,28 @@ _ = pf.add_observations(hsim_file,
                             insfile=f'{hsim_file}.ins', 
                             index_cols='time', 
                             prefix='hds')
+
 # head fluctuations to mean
 helpers.process_secondary_obs(ws=tpl_dir)
+# total drainage 
+helpers.write_tot_drn(ws=tpl_dir)
 
 _ = pf.add_observations('sescousse.head.tdiff.csv', 
                             insfile="heads.tdiff.csv.ins", 
                             index_cols="time", 
                             prefix="hdsfluct") 
+
+# add cumulative flows from swb 
+_ = pf.add_observations('swb_cum.csv', 
+                            insfile="swb_cum.csv.ins", 
+                            index_cols="time", 
+                            prefix='fcst') 
+
+# add total drainage flow  
+_ = pf.add_observations('tot_drn.csv', 
+                            insfile="tot_drn.csv.ins", 
+                            index_cols="time", 
+                            prefix='fcst') 
 
 # add model command
 if len(pf.mod_sys_cmds)==0:
@@ -87,6 +102,7 @@ if len(pf.mod_sys_cmds)==0:
 pf.add_py_function('swb.py', 'run_swb(par_file="par.dat")', is_pre_cmd=True)
 pf.add_py_function('helpers.py', 'set_mf_par_vals()', is_pre_cmd=True)
 pf.add_py_function('helpers.py', 'process_secondary_obs(ws=".")', is_pre_cmd=False)
+pf.add_py_function('helpers.py', 'write_tot_drn()', is_pre_cmd=False)
 
 # -- generate pst 
 pst = pf.build_pst()
@@ -113,12 +129,25 @@ par = pst.add_parameters(tpl_file,pst_path='.')
 par = pst.parameter_data
 par.loc[par.index,'pargp'] = pdata.loc[par.index,'pargp']
 par.loc[par.index,'partrans'] = pdata.loc[par.index,'partrans']
-par.loc[par.index,'parlbnd'] = pdata.loc[par.index,'parlbnd']
-par.loc[par.index,'parubnd'] = pdata.loc[par.index,'parubnd']
+par.loc[par.index,'parlbnd'] = pdata.loc[par.index,'priorlbnd']
+par.loc[par.index,'parubnd'] = pdata.loc[par.index,'priorubnd']
 par.loc[par.index,'parval1'] = pdata.loc[par.index,'val']
 
 # update parameter groups
 pst.rectify_pgroups()
+
+# generate and save prior parameter cov matrix
+pcov = pyemu.Cov.from_parameter_data(pst)
+pcov.to_ascii(os.path.join(tpl_dir,'prior_par.cov'))
+
+# generate parmeter realizations
+prior_pe = pyemu.ParameterEnsemble.from_gaussian_draw(pst, cov=pcov, num_reals=40)
+prior_pe.enforce()
+prior_pe.to_binary(os.path.join(tpl_dir,'prior_pe.jcb'))
+
+# loosen parameter bounds
+par.loc[par.index,'parlbnd'] = pdata.loc[par.index,'parlbnd']
+par.loc[par.index,'parubnd'] = pdata.loc[par.index,'parubnd']
 
 # --- process observed values and weights 
 
@@ -181,6 +210,10 @@ obs.loc[idx,'weight']=0
 idx = obs.index.str.contains('fs')
 obs.loc[idx,'weight'] = 0 # obs.loc[idx,'weight'].div(10)
 
+# 0-weight for forecasts
+idx = obs.index.str.contains('fcst')
+obs.loc[idx,'weight'] = 0
+
 # fix issue with ps3 (keep only fluctuations)
 #idx = obs.index.str.contains('hds_otype:lst_usecol:ps3')
 #obs.loc[idx,'weight']=0
@@ -189,7 +222,7 @@ obs.loc[idx,'weight'] = 0 # obs.loc[idx,'weight'].div(10)
 
 pst.pestpp_options['uncertainty']='False'
 
-# regularization settings
+# regularization settings (for regularization mode)
 #pst.reg_data.phimlim = pst.nnz_obs
 pst.reg_data.phimlim = 3e4 
 pst.reg_data.phimaccept = pst.reg_data.phimlim*1.1
@@ -199,11 +232,34 @@ pst.reg_data.wfinit = 1e-3
 pst.reg_data.wfac = 1.5
 pst.reg_data.wtol = 1.0e-2
 
-# adjust derinc
+# SVD parameters 
+pst.svd_data.maxsing = pst.npar_adj
+pst.svd_data.eigthresh = 1e-6
+
+# adjust derinc for jacobian computation
 pst.parameter_groups.loc[:,'derinc']=0.10
+pst.parameter_groups.loc[:,'forcen']='always_3'
 
 # implement prefered value regularization
 pyemu.helpers.zero_order_tikhonov(pst)
+
+# set forecasts 
+forecasts = obs.index[obs.index.str.contains('fcst')].values
+pst.pestpp_options['forecasts'] = ','.join(forecasts)
+
+# activate the regularized-GLM solution
+pst.pestpp_options['glm_normal_form'] = 'prior'
+
+# define prior parmeter covariance matrix
+pst.pestpp_options['parcov'] = 'prior_par.cov'
+
+# set mode to estimation for PESTPP regularized-GLM
+pst.control_data.pestmode= 'estimation'
+
+# IES settings 
+pst.pestpp_options['ies_num_reals'] = prior_pe.shape[0]
+pst.pestpp_options['ies_parameter_ensemble'] = 'prior_pe.jcb'
+
 
 # set noptmax
 pst.control_data.noptmax=0
