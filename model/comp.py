@@ -69,7 +69,7 @@ for l,d in dirs.items():
 # plot 
 lss = {'cal':'-','nodrn':':','drn110':'--'}
 
-fig,ax =plt.subplots(1,1,figsize=(mdcol_width,mdcol_width))
+fig,ax =plt.subplots(1,1,figsize=(dbcol_width,mdcol_width))
 
 for l,d in dirs.items():
     df = indics[l]
@@ -81,9 +81,25 @@ for l,d in dirs.items():
 
 ax.set_ylim(-5,5)
 
-# cumulated water excess/stress 
-w = w_records.sum()
-d = d_records.sum()
+fig.savefig(os.path.join('fig','indics_records.pdf'),dpi=300)
+
+
+indics_cum = pd.DataFrame({'wcum':[ df['w'].sum() for df in indics.values()],
+'dcum':[ df['d'].sum() for df in indics.values()]},
+             index = indics.keys())
+
+
+fig,ax = plt.subplots(1,1,figsize=(mdcol_width,mdcol_width))
+indics_cum.plot(ax=ax,kind='bar')
+ax.set_ylabel('Hauteur d\'eau cumulée [mm]')
+fig.tight_layout()
+fig.savefig(os.path.join('fig','indics_cum.pdf'),dpi=300)
+
+
+
+
+
+
 
 # figure of spatially averaged levels (gw, wet, dry critical levels)
 

@@ -5,6 +5,12 @@ from matplotlib import pyplot as plt
 import flopy
 import swb
 
+# plot settings
+plt.rc('font', family='serif', size=9)
+sgcol_width = 9/2.54
+mdcol_width = 14/2.54
+dbcol_width = 19/2.54
+
 # --------------------------------------
 # ---- settings     ----------
 # --------------------------------------
@@ -115,28 +121,80 @@ fig.tight_layout()
 
 fig.savefig(os.path.join('fig','obs_vars.pdf'),dpi=300)
 
+# --------------------------------------
+# ---- plot levels along cross-section      ----------
+# --------------------------------------
+
+fig,axs = plt.subplots(3,1,sharex=True, figsize=(10,6)) #A4 paper size
+
+ax0, ax1, ax2, = axs
+
+# weather 
+ax0.bar(stjean_df.index, stjean_df.xs('Rain_mm_Tot',axis=1)['sum'], color='darkblue', label='P')
+ax0.bar(mf_df.index, mf_df.ETP, color='tan', label='PET',alpha=0.8)
+ax0.set_ylabel('mm/d')
+ax0.legend(loc='upper left')
+
+# 1st x-section
+pids = ['FS1','FS2','PS1']
+linestyles = ['--','--','-']
+cols = ['blue','orange','green']
+for pid,ls in zip(pids,linestyles):
+    l = obs_levels[pid].plot(ax=ax1,ls=ls,label=pid)
+
+ax1.set_ylabel('m NGF')
+ax1.legend(loc='upper right')
+
+
+# 2nd x-section
+pids = ['FS2','FS3','PS3']
+linestyles = ['--','--','-']
+cols = ['blue','orange','green']
+
+for pid,ls in zip(pids,linestyles):
+    obs_levels[pid].plot(ax=ax2, ls=ls, label=pid)
+
+ax2.set_ylabel('m NGF')
+ax2.legend(loc='upper right')
+
+date_min, date_max = ax0.get_xlim()
+date_min = pd.to_datetime('2023-07-01')
+date_max = pd.to_datetime('2024-08-01')
+ax0.set_xlim(date_min,date_max)
+
+for ax in axs:
+    ax.axvline(start_date,ls='--',color='grey')
+    ax.axvline(end_date,ls='--',color='grey')
+
+fig.align_ylabels()
+fig.tight_layout()
+
+fig.savefig(os.path.join('fig','piezo_fs.pdf'),dpi=300)
+
+
 
 # -----------------------------------------------------------
 # ---- investigate regional hydraulic gradient     ----------
 # -----------------------------------------------------------
 
 
-bheads_df = pd.merge( obs_levels[['PS1','PS2']] ,  ades_df['F'], 
+bheads_df = pd.merge( obs_levels[['PS1','PS2','PS3']] ,  ades_df['F'], 
                      left_index=True,right_index=True, 
                      how='left')
 
 fig,axs = plt.subplots(3,1,sharex=True, figsize=(10,6)) #A4 paper size
 ax0, ax1, ax2 = axs
 
-bheads_df[['PS1','PS2','F']].plot(ax=ax0)
+bheads_df[['PS1','PS2','PS3','F']].plot(ax=ax0)
 
 bheads_df['PS1m'] = bheads_df.PS1 - bheads_df.PS1.mean()
 bheads_df['PS2m'] = bheads_df.PS2 - bheads_df.PS2.mean()
+bheads_df['PS3m'] = bheads_df.PS3 - bheads_df.PS3.mean()
 bheads_df['Fm'] = bheads_df.F - bheads_df.F.mean()
 
-bheads_df[['PS1m','PS2m','Fm']].plot(ax=ax1)
+bheads_df[['PS1m','PS2m','PS3m','Fm']].plot(ax=ax1)
 
-dist_PS1_F = 5300 # m 
+dist_PS1_F = 5400 # m 
 bheads_df['gradh'] = (bheads_df.PS1 - bheads_df.F) /dist_PS1_F
 bheads_df['gradh'].plot(ax=ax2)
 ax2.set_ylim(0.0005,0.0007)
@@ -186,8 +244,6 @@ evta = flopy.mf6.ModflowGwfevta(
     ml,
     pname="evt",
     save_flows=True,
-    #surface = 5, # non-limited evt elevation 
-    #depth = -20, # exctinction elevation 
     surface = evt_surf, # non-limited evt elevation 
     depth = evt_extdp, # exctinction elevation 
     rate = {i:evt[i] for i in range(nper)}
@@ -209,7 +265,20 @@ sto = flopy.mf6.ModflowGwfsto(
 drn = ml.get_package('drn_0')
 drn_rec0 = drn.stress_period_data.get_data()[0]
 drn_rec0['cond'] = parvals.loc['cdrn']
-ml.drn.stress_period_data.set_data({0:drn_rec0})
+
+drn_records = obs_levels.loc[sim_dates,['FS1','FS2','FS3']]
+
+
+# gen stress period data 
+drn_spd = {}
+for i in range(nper):
+    drn_rec = drn_rec0.copy()
+    # assign elevation based on boundname
+    drn_ids = np.char.upper(drn_rec0['boundname'].astype('str'))
+    drn_rec['elev'] = drn_records.iloc[i].loc[drn_ids]
+    drn_spd[i]=drn_rec
+
+ml.drn.stress_period_data.set_data(drn_spd)
 
 
 # --- river network 

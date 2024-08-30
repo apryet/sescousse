@@ -78,7 +78,9 @@ def set_mf_par_vals():
     print('Setting cdrn values...')
     drn = ml.get_package('drn_0')
     drn_spd = drn.stress_period_data.get_data()
-    drn_spd[0]['cond']=parvals.loc['cdrn']
+    for i in drn_spd.keys():
+        drn_spd[i]['cond'] = parvals.loc['cdrn']
+
     drn.stress_period_data.set_data(drn_spd)
 
     # set criv
@@ -99,7 +101,7 @@ def write_tot_drn(ws='.'):
     import pandas as pd 
     zone_surf = 1071422. # model domain surface (area of interest only), m2
     drnobs = pd.read_csv(os.path.join(ws,'sescousse.drn.obs.output.csv'),index_col=0)
-    drnobs['flow']= drnobs.DRN*(-1/zone_surf*1000*86400) # m3/s to mm/d
+    drnobs['flow']= drnobs.sum(axis=1)*(-1/zone_surf*1000*86400) # m3/s to mm/d
     tot_drn = drnobs.flow.sum()
     tot_drn_df = pd.DataFrame({'tot_drn_mm':[tot_drn]})
     tot_drn_df.index.name = 'time'

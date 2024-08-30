@@ -20,14 +20,6 @@ def run_swb(clim_file='clim.csv',theta_sat = None, D_max= None, par_file=None, c
     #I_max = 1 # Canopy and crop residue interception (evaporation) in mm/day
     z = 400 # Length of the soil profile in mm
 
-    # characteristic water contents
-    if theta_sat is None: 
-        theta_sat = 0.40
-
-    # Maximum daily drainage rate [mm/d]
-    if D_max is None: 
-        D_max = 25 
-
     # if par_file provided, read file and set par values 
     if par_file is not None:
         # load par values 
@@ -35,6 +27,14 @@ def run_swb(clim_file='clim.csv',theta_sat = None, D_max= None, par_file=None, c
         # set parameter values 
         theta_sat = parvals.loc['tsat']
         D_max = parvals.loc['dmax']
+
+    # characteristic water contents
+    if theta_sat is None: 
+        theta_sat = 0.40
+
+    # Maximum daily drainage rate [mm/d]
+    if D_max is None: 
+        D_max = 25 
 
     # with adjustable theta_sat, fc and r have to be defined as ratios to avoid conflicts
     # (estimates deserve to be refined)

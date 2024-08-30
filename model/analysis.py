@@ -55,6 +55,12 @@ times = hdfile.get_times()
 start_date= pd.to_datetime(sim.tdis.start_date_time.get_data())
 end_date = pd.to_datetime(start_date+ pd.to_timedelta(nper-1,'d'))
 dates_out  = pd.date_range(start_date,end_date).date
+
+# load simulated heads
+hsim = pd.read_csv(os.path.join('sescousse.head.csv'),index_col='time')
+hsim['date'] = (pd.to_datetime(start_date)+pd.to_timedelta(hsim.index.values.astype(float),'s')).date
+hsim.index = hsim.date
+
 # -------------------------------------
 #--- drn records 
 # -------------------------------------
@@ -63,7 +69,7 @@ dates_out  = pd.date_range(start_date,end_date).date
 zone_surf = delr*delc*(idomain>1).sum()
 drnobs = pd.read_csv('sescousse.drn.obs.output.csv',index_col=0)
 drnobs.index = dates_out
-drnobs['flow']= drnobs.DRN*(-1/zone_surf*1000*86400) # m3/s to mm/d
+drnobs['flow']= drnobs.sum(axis=1)*(-1/zone_surf*1000*86400) # m3/s to mm/d
 
 drnb = ml.output.budget().get_data(text='DRN')
 drnf_records = -1*np.array([ drnb[i]['q'].sum() for i in range(nper)])/zone_surf*1000*86400 # m3/s to mm/d
@@ -215,6 +221,28 @@ for n,i in enumerate(range(0,hds.shape[0],10)):
 # -------------------------------------
 head_shpfile = os.path.join('fig','heads_ss.shp')
 hdfile.to_shapefile(head_shpfile,kstpkper=(0,0))
+
+# -------------------------------------
+#---  maps
+# -------------------------------------
+
+xlabel = 'x (estward) m RGF93'
+ylabel = 'y (northward) m RGF93'
+masked_values = [-9999]
+
+# plot top array
+top = ml.dis.top.array
+fig = plt.figure(figsize=(6,4))
+ax = fig.add_subplot(1, 1, 1, aspect='equal')
+ax.set_xlabel(xlabel)
+ax.set_ylabel(ylabel)
+ax.set_title("Model Top  Elevations")
+mapview = flopy.plot.PlotMapView(model=ml, layer=0)
+quadmesh = mapview.plot_array(top,masked_values=masked_values)
+cb = plt.colorbar(quadmesh, shrink=0.5, ax=ax)
+fig.savefig(os.path.join('fig','top.png'),dpi=300)
+
+
 
 # -------------------------------------
 #---  maps of groundwater head

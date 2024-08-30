@@ -132,7 +132,7 @@ drn:
     shapefile:
       filename: '../gis/drn_lines.shp'
       id_column: 'id'
-      boundname_column: 'type'
+      boundname_column: 'sid'
     elev:
       filename: '../gis/dtm_no_drn_ext_trim_filt_m75cm.tif'
       resample_method : 'nearest'

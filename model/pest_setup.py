@@ -7,6 +7,19 @@ import helpers
 
 
 # -----------------------------------------------------------
+# TO DO LIST !!!! 
+# -----------------------------------------------------------
+
+'''
+weighting strategy for IES
+correlated observation noise 
+'''
+
+# NOTE 
+# TODO 
+
+
+# -----------------------------------------------------------
 # admin 
 # -----------------------------------------------------------
 
@@ -146,9 +159,10 @@ prior_pe.enforce()
 prior_pe.to_binary(os.path.join(tpl_dir,'prior_pe.jcb'))
 
 # loosen parameter bounds
+'''
 par.loc[par.index,'parlbnd'] = pdata.loc[par.index,'parlbnd']
 par.loc[par.index,'parubnd'] = pdata.loc[par.index,'parubnd']
-
+'''
 # --- process observed values and weights 
 
 # load sim values
@@ -214,12 +228,11 @@ obs.loc[idx,'weight'] = 0 # obs.loc[idx,'weight'].div(10)
 idx = obs.index.str.contains('fcst')
 obs.loc[idx,'weight'] = 0
 
-# fix issue with ps3 (keep only fluctuations)
-#idx = obs.index.str.contains('hds_otype:lst_usecol:ps3')
+# discard ps2 (keep only fluctuations)
+#idx = obs.index.str.contains('hds_otype:lst_usecol:ps2')
 #obs.loc[idx,'weight']=0
 
 # --- further PEST settings 
-
 pst.pestpp_options['uncertainty']='False'
 
 # regularization settings (for regularization mode)
@@ -247,19 +260,23 @@ pyemu.helpers.zero_order_tikhonov(pst)
 forecasts = obs.index[obs.index.str.contains('fcst')].values
 pst.pestpp_options['forecasts'] = ','.join(forecasts)
 
-# activate the regularized-GLM solution
-pst.pestpp_options['glm_normal_form'] = 'prior'
-
 # define prior parmeter covariance matrix
 pst.pestpp_options['parcov'] = 'prior_par.cov'
 
+# activate the regularized-GLM solution
+pst.pestpp_options['glm_normal_form'] = 'diag'
+#pst.pestpp_options['glm_normal_form'] = 'prior'
+
 # set mode to estimation for PESTPP regularized-GLM
-pst.control_data.pestmode= 'estimation'
+if pst.pestpp_options['glm_normal_form']=='prior':
+    pst.control_data.pestmode='estimation'
+else :
+    pst.control_data.pestmode= 'regularization'
 
 # IES settings 
 pst.pestpp_options['ies_num_reals'] = prior_pe.shape[0]
 pst.pestpp_options['ies_parameter_ensemble'] = 'prior_pe.jcb'
-
+pst.pestpp_options['ies_n_iter_mean'] = 2
 
 # set noptmax
 pst.control_data.noptmax=0

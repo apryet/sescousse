@@ -45,20 +45,12 @@ ax0.bar(swb.index, swb.P,color='darkblue',label='Precipitations')
 ax0.set_ylabel('P [mm/d]')
 ax0.legend(loc='upper right')
 
-# potential evapotranspiration
-ax1.bar(swb.index, swb.PET, color='tan', label='PET')
-ax1.bar(swb.index, swb.RU, color='darkgreen', label='Groundwater uptake')
+# potential, soil evapotranspiration and root uptake 
+ax1.bar(swb.index, swb.PET, color='grey', label='PET')
+ax1.bar(swb.index, swb.RU, color='darkgoldenrod', label='RU',alpha=0.7)
+ax1.bar(swb.index, swb['T'], color='forestgreen', label='CSET',alpha=0.7)
 ax1.set_ylabel('(P)ET mm/d')
 ax1.legend(loc='upper left')
-
-'''
-# secondary, downward axis
-twax1 = ax1.twinx()
-twax1.bar(swb.index, swb.P,color='darkblue',label='Rainfall')
-twax1.invert_yaxis()
-twax1.set_ylabel('P [mm/d]')
-twax1.legend(loc='upper right')
-'''
 
 ax2.bar(swb.index,swb.R,color='darkgrey',label='Recharge')
 ax2.set_ylabel('mm/d')
