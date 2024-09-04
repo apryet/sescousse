@@ -57,8 +57,9 @@ def get_indic(sim_dir):
 
 # comparison sim dirs 
 dirs = {'cal':'master_glm',
-        'nodrn':'master_glm_nodrn',
-        'drn110':'drn110'}
+        'nodrn':'nodrn',
+        'drn110':'drn110',
+        'drn40':'drn40'}
 
 # compute indicators 
 indics={}
@@ -94,41 +95,5 @@ indics_cum.plot(ax=ax,kind='bar')
 ax.set_ylabel('Hauteur d\'eau cumulée [mm]')
 fig.tight_layout()
 fig.savefig(os.path.join('fig','indics_cum.pdf'),dpi=300)
-
-
-
-
-
-
-
-# figure of spatially averaged levels (gw, wet, dry critical levels)
-
-ax0,ax1 = axs
-# gw level
-ax0.plot(dates_out,hm,label='Groundwater level (spatially averaged)',color='k')
-# surface level
-ax0.axhline(zm,color='darkgrey',ls='--')
-ax0.text(dates_out[-50],zm+0.05,'Surface level',color='darkgrey')
-# wet critical level
-ax0.axhline(zm-depth_w,color='darkblue',ls=':')
-ax0.text(dates_out[-50],zm-depth_w+0.05,'Wet depth',color='darkblue')
-# dry critical level 
-ax0.axhline(zm-depth_d,color='darkorange',ls=':')
-ax0.text(dates_out[-50],zm-depth_d+0.05,'Dry depth',color='darkorange')
-
-ax0.legend(loc='upper left')
-ymin,ymax=ax0.get_ylim()
-ax0.set_ylim(ymin,ymax+0.20)
-ax0.set_ylabel('Elevation [m NGF]')
-
-ax1.plot(dates_out,w_records,color='darkblue',label='Water excess')
-ax1.plot(dates_out,d_records,color='darkorange',label='Water deficit')
-ax1.set_ylabel('Water excess / deficit [mm]')
-ax1.legend()
-
-fig.tight_layout()
-
-fig.savefig(os.path.join('fig','critical_levels_mean_records.pdf'),dpi=300)
-
 
 

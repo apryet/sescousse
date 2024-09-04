@@ -22,7 +22,7 @@ delc = ml.dis.delc[0]
 # set output control and re-reun model 
 ml.oc.saverecord = {k:[('HEAD','LAST'), ('BUDGET','LAST')]for k in range(nper)}
 sim.write_simulation()
-success, buff = sim.run_simulation(report=True)
+#success, buff = sim.run_simulation(report=True)
 
 # load idomain raster
 idomain_file = os.path.join('..','..','gis','idomain.tif') 
@@ -151,7 +151,44 @@ depth_d = 1.5 # water stress
 z_w = dtm - depth_w
 z_d = dtm - depth_d
 
-# masked head array over area of interest (idomain >1)
+
+# --- plot head records at PS1 with critical depths 
+
+fig,ax =plt.subplots(1,1,figsize=(dbcol_width,dbcol_width/2))
+
+# get row, col of observation point PS1 
+obs_df = pd.DataFrame(ml.obs[0].continuous.data['sescousse.head.csv'])
+obs_df = obs_df.set_index('obsname')
+i = obs_df.loc['ps1','id'][1] - 1 # 0-based row
+j = obs_df.loc['ps1','id'][2] - 1 # 0-based col
+
+ps1_terrain_level = dtm[i,j]
+ps1_w_level = z_w[i,j]
+ps1_d_level = z_d[i,j]
+
+# gw level
+ax.plot(dates_out,hsim.PS1,label='Groundwater level at PS1',color='k')
+# surface level
+ax.axhline(ps1_terrain_level,color='darkgrey',ls='--')
+ax.text(dates_out[-50],ps1_terrain_level+0.05,'Surface level',color='darkgrey')
+# wet critical level
+ax.axhline(ps1_w_level,color='darkblue',ls=':')
+ax.text(dates_out[-50],ps1_w_level+0.05,'Wet depth',color='darkblue')
+# dry critical level 
+ax.axhline(ps1_d_level,color='darkorange',ls=':')
+ax.text(dates_out[-50],ps1_d_level+0.05,'Dry depth',color='darkorange')
+
+ax.legend(loc='upper left')
+ymin,ymax=ax.get_ylim()
+ax.set_ylim(ymin,ymax+0.20)
+ax.set_ylabel('Elevation [m NGF]')
+
+fig.savefig(os.path.join('fig','critical_levels_PS1.pdf'),dpi=300)
+
+
+# --- plot indicator records 
+
+# masked head array over area of interest (idomain=3)
 mhds = np.ma.masked_where(idomain_3d<3, hds[:,0,:,:])
 
 # spatially averaged dtm 
@@ -169,52 +206,51 @@ d_records = ((mhds-z_d)*(mhds<z_d)).sum(axis=(1,2))/(mhds<z_d).sum()*1000
 w = w_records.sum()
 d = d_records.sum()
 
-# figure of spatially averaged levels (gw, wet, dry critical levels)
-fig,axs =plt.subplots(2,1,sharex=True,figsize=(dbcol_width,dbcol_width))
+fig,ax =plt.subplots(1,1,figsize=(dbcol_width,dbcol_width/2))
 
-ax0,ax1 = axs
-# gw level
-ax0.plot(dates_out,hm,label='Groundwater level (spatially averaged)',color='k')
-# surface level
-ax0.axhline(zm,color='darkgrey',ls='--')
-ax0.text(dates_out[-50],zm+0.05,'Surface level',color='darkgrey')
-# wet critical level
-ax0.axhline(zm-depth_w,color='darkblue',ls=':')
-ax0.text(dates_out[-50],zm-depth_w+0.05,'Wet depth',color='darkblue')
-# dry critical level 
-ax0.axhline(zm-depth_d,color='darkorange',ls=':')
-ax0.text(dates_out[-50],zm-depth_d+0.05,'Dry depth',color='darkorange')
-
-ax0.legend(loc='upper left')
-ymin,ymax=ax0.get_ylim()
-ax0.set_ylim(ymin,ymax+0.20)
-ax0.set_ylabel('Elevation [m NGF]')
-
-ax1.plot(dates_out,w_records,color='darkblue',label='Water excess')
-ax1.plot(dates_out,d_records,color='darkorange',label='Water deficit')
-ax1.set_ylabel('Water excess / deficit [mm]')
-ax1.legend()
-
+ax.plot(dates_out,w_records,color='darkblue',label='Water excess')
+ax.plot(dates_out,d_records,color='darkorange',label='Water deficit')
+ax.set_ylabel('Water excess / deficit [mm]')
+ax.legend()
 fig.tight_layout()
 
-fig.savefig(os.path.join('fig','critical_levels_mean_records.pdf'),dpi=300)
+fig.savefig(os.path.join('fig','indicators_records.pdf'),dpi=300)
 
 
 # -------------------------------------
-#---  x-section 
+#---  x-section through PS1
 # -------------------------------------
-fig,ax = plt.subplots(1,1,figsize=(4,4))
 
-# head ic cross-section
-hds0_2d = ml.ic.strt.data[0]
-ax.plot(hds0_2d[:, int(ml.dis.ncol.data/2)],label='ic')
+xsects_dir = os.path.join('fig','xsects')
 
-# head steady state cross-section
+if not os.path.exists(xsects_dir):
+    os.mkdir(xsects_dir)
 
-for n,i in enumerate(range(0,hds.shape[0],10)):
-    hds_2d = hds[i,0,:,:]
-    ax.plot(hds_2d[:, int(ml.dis.ncol.data/2)],linewidth=1,label='ss')
-    fig.tight_layout()
+
+# get row, col of observation point PS1 
+obs_df = pd.DataFrame(ml.obs[0].continuous.data['sescousse.head.csv'])
+obs_df = obs_df.set_index('obsname')
+ps1_row = obs_df.loc['ps1','id'][1] - 1 # 0-based col
+
+hmin,hmax=19,22
+
+for n,i in enumerate(range(0,hds.shape[0],1)):
+    fig,ax = plt.subplots(1,1,figsize=(dbcol_width,dbcol_width/2))
+    hds2d = hds[i,0,:,:]
+    xsect = flopy.plot.PlotCrossSection(model=ml, line={"Row": ps1_row})
+    pc = xsect.plot_array(hds2d, head=hds2d, alpha=1)
+    bc=  xsect.plot_bc('drn',color='tan',alpha=0.7)
+    bc=  xsect.plot_bc('riv',color='blue',alpha=0.7)
+    ax.set_xlim(190,1040)
+    ax.set_ylim(hmin,hmax)
+    linecollection = xsect.plot_grid(alpha=0.5)
+    cb = plt.colorbar(pc, shrink=0.75)
+    cb.set_label('m NGF')
+    fig.savefig(os.path.join(xsects_dir,f'xsect_{n}.png'))
+    plt.close()
+
+convert 'xsect_%d.png[0-265]' -scale 1066x800 -delay 20 -coalesce -layers Optimize -fuzz 2% +dither hmap.gif
+
 
 # -------------------------------------
 #---  save steady state to shape file 
@@ -225,24 +261,6 @@ hdfile.to_shapefile(head_shpfile,kstpkper=(0,0))
 # -------------------------------------
 #---  maps
 # -------------------------------------
-
-xlabel = 'x (estward) m RGF93'
-ylabel = 'y (northward) m RGF93'
-masked_values = [-9999]
-
-# plot top array
-top = ml.dis.top.array
-fig = plt.figure(figsize=(6,4))
-ax = fig.add_subplot(1, 1, 1, aspect='equal')
-ax.set_xlabel(xlabel)
-ax.set_ylabel(ylabel)
-ax.set_title("Model Top  Elevations")
-mapview = flopy.plot.PlotMapView(model=ml, layer=0)
-quadmesh = mapview.plot_array(top,masked_values=masked_values)
-cb = plt.colorbar(quadmesh, shrink=0.5, ax=ax)
-fig.savefig(os.path.join('fig','top.png'),dpi=300)
-
-
 
 # -------------------------------------
 #---  maps of groundwater head
@@ -263,7 +281,7 @@ for n,i in enumerate(range(0,hds.shape[0],1)):
     # masked 2D head array
     hds2d = hds[i,0,:,:]
     hds2d[idomain < 2]=np.nan
-    pa = modelmap.plot_array(hds2d) #, vmin=20.5,vmax=22)
+    pa = modelmap.plot_array(hds2d, vmin=20.5,vmax=22)
     cb = plt.colorbar(pa, shrink=0.5)
     cb.set_label('m NGF')
     fig.savefig(os.path.join(hmaps_dir,f'h_{n}.png'))
@@ -280,7 +298,6 @@ gwdmaps_dir = os.path.join('fig','gwdmaps')
 
 if not os.path.exists(gwdmaps_dir):
     os.mkdir(gwdmaps_dir)
-
 
 gwd = dtm - hds
 

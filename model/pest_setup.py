@@ -1,23 +1,10 @@
 import os, shutil
 import numpy as np
 import pandas as pd
+from matplotlib import pyplot as plt
 import flopy
 import pyemu
 import helpers
-
-
-# -----------------------------------------------------------
-# TO DO LIST !!!! 
-# -----------------------------------------------------------
-
-'''
-weighting strategy for IES
-correlated observation noise 
-'''
-
-# NOTE 
-# TODO 
-
 
 # -----------------------------------------------------------
 # admin 
@@ -75,7 +62,7 @@ pf = pyemu.utils.PstFrom(original_d=tmp_dir,
                             zero_based=False, 
                             start_datetime=start_date, 
                             echo=False)
-     
+  
 # -- add observations 
 
 # absolute head values 
@@ -151,10 +138,12 @@ pst.rectify_pgroups()
 
 # generate and save prior parameter cov matrix
 pcov = pyemu.Cov.from_parameter_data(pst)
-pcov.to_ascii(os.path.join(tpl_dir,'prior_par.cov'))
+pcov.to_coo(os.path.join(tpl_dir,'prior_pcov.jcb'))
 
 # generate parmeter realizations
-prior_pe = pyemu.ParameterEnsemble.from_gaussian_draw(pst, cov=pcov, num_reals=40)
+num_reals = 40
+#prior_pe = pyemu.ParameterEnsemble.from_gaussian_draw(pst, cov=pcov, num_reals=num_reals)
+prior_pe = pyemu.ParameterEnsemble.from_uniform_draw(pst, num_reals=num_reals)
 prior_pe.enforce()
 prior_pe.to_binary(os.path.join(tpl_dir,'prior_pe.jcb'))
 
@@ -163,7 +152,10 @@ prior_pe.to_binary(os.path.join(tpl_dir,'prior_pe.jcb'))
 par.loc[par.index,'parlbnd'] = pdata.loc[par.index,'parlbnd']
 par.loc[par.index,'parubnd'] = pdata.loc[par.index,'parubnd']
 '''
+
+# -----------------------------------------------------------------
 # --- process observed values and weights 
+# -----------------------------------------------------------------
 
 # load sim values
 hsim = pd.read_csv(os.path.join(tpl_dir,'sescousse.head.csv'),index_col='time')
@@ -196,8 +188,27 @@ obs['date'] = (pd.to_datetime(start_date)+pd.to_timedelta(obs.time.values.astype
 # temporarily reset obs index 
 obs.index = pd.MultiIndex.from_frame(pd.DataFrame({'oname':obs.oname,'date':obs.date, 'loc':obs.usecol.str.upper()}))
 
+
+#  ---------------- generate observation covariance matrix 
+
+obswells = ['PS1','PS2','PS3']
+
+'''
+# take a peek to observation auto-correlation plots
+for locnme in obswells: 
+    # NOTE check lag unit, not sure wheter it remains relevant for irregular dates
+    ts = hobs.loc[('hds',slice(None),locnme)]
+    fig,ax = plt.subplots(figsize=(5,4))
+    pd.plotting.autocorrelation_plot(ts,ax=ax)
+    fig.savefig(os.path.join('fig',f'autocor_{locnme}.png'),dpi=300)
+'''
+
+
+# => after a rough anlaysis, we get auto-corr. of ~120 days 
+v = pyemu.geostats.ExpVario(a=40,contribution=1.0)
+
 # default weights to 0 to make sure unavailable obs are discarded in PHI
-obs.weight = 0
+obs.weight = 1/sigma
 
 # set head obs 
 idx = obs.index.intersection(hobs.index) 
@@ -209,28 +220,73 @@ idx = obs.index.intersection(hobsfluct.index)
 obs.loc[idx,'obsval'] = hobsfluct.loc[idx]
 obs.loc[idx,'weight'] = 1/sigma
 
+# get full (diagonal) observation covariance matrix from obs weights 
+obs_cov = pyemu.Cov.from_observation_data(pst)
+
+# -- Load and replace off diagonal terms from autocorrelation
+print('Computing off-diag terms of observation covariance matrix...')
+for locnme in obswells:
+    for otype in ['hds','hdsfluct']:
+        # get observation names for current loc
+        obs_ss = obs.loc[(otype,slice(None),locnme)]
+        onmes = list(obs_ss.obsnme.values)
+        # get correlation matrix from variogram model
+        dates=pd.to_datetime(obs_ss.index.values)
+        x = (dates - dates[0]).astype('timedelta64[D]').values  # days from first obs.
+        y = np.zeros_like(x)  # dummy constant vector for Vario2d methods
+        corr = v.covariance_matrix(x,y,names=onmes)
+        # get covariance matrix from correlation matrix scaled by the sigma_i*sigma_j matrix
+        # we get this matrix with the outer product of the sigma_vec by itself.
+        # hadamard product corresponds to np.multiply (matrix term-by-term product)
+        sigma_vec = obs_cov.get(onmes,onmes).get_diagonal_vector().sqrt
+        cov = corr.hadamard_product(
+                pyemu.Matrix(x=np.outer(sigma_vec.x,sigma_vec.x),
+                             row_names=onmes,
+                             col_names=onmes)
+                )
+        obs_cov.replace(cov)
+
+obs_cov.to_coo(os.path.join(tpl_dir,'obs_cov.jcb'))
+
 # reset index 
 obs.index= obs.obsnme
 
+# generate observation ensemble for IES
+oe = pyemu.ObservationEnsemble.from_gaussian_draw(pst=pst, 
+                                                num_reals=num_reals,
+                                                cov=obs_cov) 
+
+oe.add_base()
+oe.to_binary(os.path.join(tpl_dir,'oe.jcb'))
+
+# set observation weights 
+
+# default weights to 0 to make sure unavailable obs are discarded in PHI
+obs.weight = 0
+
+# reset head obs weights
+idx = obs.obsnme.str.contains('hds_')
+obs.loc[idx,'weight'] = 1/sigma
+
+# reset head fluct obs weights
+idx = obs.obsnme.str.contains('hdsfluct_')
+obs.loc[idx,'weight'] = 1/sigma
+
 # set weight to 0 when drains are dry 
-idx = obs.index.str.contains('fs') & (obs.date < pd.to_datetime('2023-11-01').date())
+idx = obs.obsnme.str.contains('fs') & (obs.date < pd.to_datetime('2023-11-01').date())
 obs.loc[idx,'weight']=0
 
 # fix issue with fs3
-idx = obs.index.str.contains('fs3') & (obs.date < pd.to_datetime('2023-12-01').date())
+idx = obs.obsnme.str.contains('fs3') & (obs.date < pd.to_datetime('2023-12-01').date())
 obs.loc[idx,'weight']=0
 
-# less weight to drain obs, anyway
-idx = obs.index.str.contains('fs')
+# no weight to drain obs, anyway
+idx = obs.obsnme.str.contains('fs')
 obs.loc[idx,'weight'] = 0 # obs.loc[idx,'weight'].div(10)
 
 # 0-weight for forecasts
-idx = obs.index.str.contains('fcst')
+idx = obs.obsnme.str.contains('fcst')
 obs.loc[idx,'weight'] = 0
-
-# discard ps2 (keep only fluctuations)
-#idx = obs.index.str.contains('hds_otype:lst_usecol:ps2')
-#obs.loc[idx,'weight']=0
 
 # --- further PEST settings 
 pst.pestpp_options['uncertainty']='False'
@@ -261,7 +317,7 @@ forecasts = obs.index[obs.index.str.contains('fcst')].values
 pst.pestpp_options['forecasts'] = ','.join(forecasts)
 
 # define prior parmeter covariance matrix
-pst.pestpp_options['parcov'] = 'prior_par.cov'
+pst.pestpp_options['parcov'] = 'prior_pcov.jcb'
 
 # activate the regularized-GLM solution
 pst.pestpp_options['glm_normal_form'] = 'diag'
@@ -276,6 +332,7 @@ else :
 # IES settings 
 pst.pestpp_options['ies_num_reals'] = prior_pe.shape[0]
 pst.pestpp_options['ies_parameter_ensemble'] = 'prior_pe.jcb'
+pst.pestpp_options['ies_observation_ensemble'] = 'oe.jcb'
 pst.pestpp_options['ies_n_iter_mean'] = 2
 
 # set noptmax
