@@ -26,10 +26,9 @@ sim = flopy.mf6.MFSimulation.load(sim_ws=steady_dir)
 ml = sim.get_model()
 
 # set sim start end dates 
-#start_date = pd.to_datetime('2023-07-12')
 start_date = pd.to_datetime('2023-10-15').date()
-#end_date = pd.to_datetime('2024-04-12')
-end_date = pd.to_datetime('2024-07-06').date()
+end_date = pd.to_datetime('2024-10-01').date()
+
 sim_dates = pd.date_range(start_date,end_date).date
 
 # --------------------------------------
@@ -54,156 +53,33 @@ pdata = pd.read_excel(os.path.join('..','data','par.xlsx'),index_col='name')
 parvals = pdata['val']
 
 # Weather data 
-stjean_file=os.path.join('..','data','stjean_daily.csv')
-stjean_df = pd.read_csv(stjean_file, header=[0,1], index_col=0, parse_dates=True)
+#stjean_file=os.path.join('..','data','stjean_daily.csv')
+#stjean_df = pd.read_csv(stjean_file, header=[0,1], index_col=0, parse_dates=True)
 
 # ETP from Meteo-France
-mf_file=os.path.join('..','data','ETP_daily.csv')
-mf_df = pd.read_csv(mf_file,parse_dates=True,header=[0],sep=';')
-mf_df.index = pd.to_datetime(mf_df.date,format='%d/%m/%Y')
-# subset to period of interest  
-mf_df = mf_df.loc[mf_df.index >= stjean_df.index.min()]
+et0_file=os.path.join('..','data','ET0_daily.csv')
+et0_df = pd.read_csv(et0_file,header=[0],sep=';')
+et0_df.index = pd.DatetimeIndex(pd.to_datetime(et0_df.date,format='%d/%m/%Y')).date
+et0 = et0_df['ETP']
+
+# P from Meteo-France
+p_file=os.path.join('..','data','P_daily.csv')
+p_df = pd.read_csv(p_file,parse_dates=True,header=[0],sep=';')
+p_df.index = pd.DatetimeIndex(pd.to_datetime(p_df.date,format='%d/%m/%Y')).date
+p = p_df['Merignac']
+
+# save to single clim file over simulation period
+clim_df = pd.DataFrame({'P':p.loc[sim_dates].values,'ET0':et0.loc[sim_dates].values},index=sim_dates)
+clim_df.to_csv(os.path.join(transient_dir,'clim.csv'))
 
 # Piezometric records from ADES
 # https://ades.eaufrance.fr/Fiche/PtEau?code=07545X0029/F
 ades_file=os.path.join('..','data','BSS001VYWT.csv')
 ades_df = pd.read_csv(ades_file,header=[0],sep=',')
-ades_df.index = pd.to_datetime(ades_df.date,format='%d/%m/%Y')
-ades_df.index = ades_df.index.date
-
-# subset 
-P = stjean_df.loc[sim_dates,('Rain_mm_Tot','sum')].values
-PET = mf_df.loc[sim_dates,'ETP'].values
-
-# save to single clim file 
-clim_df = pd.DataFrame({'P':P,'PET':PET},index=sim_dates)
-clim_df.to_csv(os.path.join(transient_dir,'clim.csv'))
-
-# --------------------------------------
-# ---- plot input data     ----------
-# --------------------------------------
-
-fig,axs = plt.subplots(3,1,sharex=True, figsize=(10,6)) #A4 paper size
-
-ax0, ax1, ax2 = axs
-
-ax0.bar(stjean_df.index, stjean_df.xs('Rain_mm_Tot',axis=1)['sum'], color='darkblue', label='P')
-ax0.bar(mf_df.index, mf_df.ETP, color='tan', label='PET',alpha=0.8)
-ax0.set_ylabel('mm/d')
-ax0.legend(loc='upper left')
-
-for pid in ['FS1','FS2','FS3','FS4']:
-    obs_levels[pid].plot(ax=ax1,label=pid)
-
-ax1.set_ylabel('m NGF')
-ax1.legend(loc='upper right')
-
-
-for pid in ['PS1','PS2','PS3']:
-    obs_levels[pid].plot(ax=ax2,label=pid)
-
-ax2.set_ylabel('m NGF')
-ax2.legend(loc='upper right')
-
-date_min, date_max = ax0.get_xlim()
-date_min = pd.to_datetime('2023-07-01')
-date_max = pd.to_datetime('2024-08-01')
-ax0.set_xlim(date_min,date_max)
-
-ax2.legend(loc='lower right')
-
-for ax in axs:
-    ax.axvline(start_date,ls='--',color='grey')
-    ax.axvline(end_date,ls='--',color='grey')
-
-fig.align_ylabels()
-fig.tight_layout()
-
-fig.savefig(os.path.join('fig','obs_vars.pdf'),dpi=300)
-
-# --------------------------------------
-# ---- plot levels along cross-section      ----------
-# --------------------------------------
-
-fig,axs = plt.subplots(3,1,sharex=True, figsize=(10,6)) #A4 paper size
-
-ax0, ax1, ax2, = axs
-
-# weather 
-ax0.bar(stjean_df.index, stjean_df.xs('Rain_mm_Tot',axis=1)['sum'], color='darkblue', label='P')
-ax0.bar(mf_df.index, mf_df.ETP, color='tan', label='PET',alpha=0.8)
-ax0.set_ylabel('mm/d')
-ax0.legend(loc='upper left')
-
-# 1st x-section
-pids = ['FS1','FS2','PS1']
-linestyles = ['--','--','-']
-cols = ['blue','orange','green']
-for pid,ls in zip(pids,linestyles):
-    l = obs_levels[pid].plot(ax=ax1,ls=ls,label=pid)
-
-ax1.set_ylabel('m NGF')
-ax1.legend(loc='upper right')
-
-
-# 2nd x-section
-pids = ['FS2','FS3','PS3']
-linestyles = ['--','--','-']
-cols = ['blue','orange','green']
-
-for pid,ls in zip(pids,linestyles):
-    obs_levels[pid].plot(ax=ax2, ls=ls, label=pid)
-
-ax2.set_ylabel('m NGF')
-ax2.legend(loc='upper right')
-
-date_min, date_max = ax0.get_xlim()
-date_min = pd.to_datetime('2023-07-01')
-date_max = pd.to_datetime('2024-08-01')
-ax0.set_xlim(date_min,date_max)
-
-for ax in axs:
-    ax.axvline(start_date,ls='--',color='grey')
-    ax.axvline(end_date,ls='--',color='grey')
-
-fig.align_ylabels()
-fig.tight_layout()
-
-fig.savefig(os.path.join('fig','piezo_fs.pdf'),dpi=300)
-
-
-
-# -----------------------------------------------------------
-# ---- investigate regional hydraulic gradient     ----------
-# -----------------------------------------------------------
-
-
-bheads_df = pd.merge( obs_levels[['PS1','PS2','PS3']] ,  ades_df['F'], 
-                     left_index=True,right_index=True, 
-                     how='left')
-
-fig,axs = plt.subplots(3,1,sharex=True, figsize=(10,6)) #A4 paper size
-ax0, ax1, ax2 = axs
-
-bheads_df[['PS1','PS2','PS3','F']].plot(ax=ax0)
-
-bheads_df['PS1m'] = bheads_df.PS1 - bheads_df.PS1.mean()
-bheads_df['PS2m'] = bheads_df.PS2 - bheads_df.PS2.mean()
-bheads_df['PS3m'] = bheads_df.PS3 - bheads_df.PS3.mean()
-bheads_df['Fm'] = bheads_df.F - bheads_df.F.mean()
-
-bheads_df[['PS1m','PS2m','PS3m','Fm']].plot(ax=ax1)
-
-dist_PS1_F = 5400 # m 
-bheads_df['gradh'] = (bheads_df.PS1 - bheads_df.F) /dist_PS1_F
-bheads_df['gradh'].plot(ax=ax2)
-ax2.set_ylim(0.0005,0.0007)
-
-fig.align_ylabels()
-fig.tight_layout()
-
-fig.savefig(os.path.join('fig','gradh.pdf'),dpi=300)
-
+ades_df.index = pd.DatetimeIndex(pd.to_datetime(ades_df.date,format='%d/%m/%Y')).date
+ades = ades_df['F']
+ades = ades.reindex(sim_dates)
+ades = ades.interpolate()
 
 # --------------------------------------
 # --- setup recharge model 
@@ -211,6 +87,7 @@ fig.savefig(os.path.join('fig','gradh.pdf'),dpi=300)
 
 swb.run_swb(theta_sat = parvals.loc['tsat'],
             D_max= parvals.loc['dmax'],
+            Kc = parvals.loc['kc'],
             cwd=transient_dir)
 
 swb = pd.read_csv(os.path.join(transient_dir,'swb_vars.csv'),index_col=0,parse_dates=True)
@@ -235,7 +112,7 @@ tdis.perioddata = [ [perlen,1,1] for _ in range(nper)]
 rcha = ml.get_package('rcha_0')
 rcha.recharge = {i:rech[i] for i in range(nper)}
 
-# --- evt package (aquifer root water uptake)
+# --- evt package (root aquifer water uptake)
 
 evt_surf = dtm - 1.20 # evt surface elevation
 evt_extdp = 0.60 # extinction depth from evt_surf 
@@ -268,7 +145,6 @@ drn_rec0['cond'] = parvals.loc['cdrn']
 
 drn_records = obs_levels.loc[sim_dates,['FS1','FS2','FS3']]
 
-
 # gen stress period data 
 drn_spd = {}
 for i in range(nper):
@@ -280,17 +156,10 @@ for i in range(nper):
 
 ml.drn.stress_period_data.set_data(drn_spd)
 
-
 # --- river network 
 
-## reference level
-riv_ref_value = 20.6 # min(h_fs4(t))
-
 # river level records at FS4
-riv_ref_records = obs_levels.loc[sim_dates,'FS4']
-
-# fluctuations to reference level
-riv_dh = riv_ref_records.values - riv_ref_value 
+riv_ref_records = obs_levels.loc[sim_dates,'FS4'].values
 
 # original recarray ModflowGwfriv
 riv = ml.get_package('riv_0')
@@ -313,11 +182,15 @@ else :
 # set conductance value from par file 
 riv_rec0['cond'] = parvals.loc['criv']
 
+# reference value at FS4 for steady state simulation
+riv_ref_value = 20.66 # hriv(fs4,ss)
+
 # gen stress period data 
 riv_spd = {}
 for i in range(nper):
     riv_rec = riv_rec0.copy()
-    riv_rec[hfield] = riv_rec0[hfield]+riv_dh[i]
+    # h_riv = hriv(ss) + (hriv(fs4,t)-hriv(fs4,ss)
+    riv_rec[hfield] = riv_rec0[hfield]+ (riv_ref_records[i]-riv_ref_value)
     riv_spd[i]=riv_rec
 
 # remove former package 
@@ -348,6 +221,7 @@ for i in range(nper):
     ghb_rec = ghb_rec0.copy()
     ghb_rec['bhead'] = ghb_rec0['bhead']+ghb_dh[i]
     ghb_spd[i]=ghb_rec
+
 
 ml.ghb.stress_period_data.set_data(ghb_spd)
 
@@ -382,3 +256,124 @@ sim.write_simulation()
 
 # -- run simulation 
 success, buff = sim.run_simulation(report=True)
+
+
+# --------------------------------------
+# ---- plot input data     ----------
+# --------------------------------------
+
+fig,axs = plt.subplots(3,1,sharex=True, figsize=(dbcol_width,dbcol_width)) 
+
+ax0, ax1, ax2 = axs
+
+ax0.bar(p.index, p.values, color='darkblue', label='P')
+ax0.bar(et0.index, et0.values, color='tan', label='PET0',alpha=0.8)
+ax0.set_ylabel('mm/d')
+ax0.legend(loc='upper left')
+
+for pid in ['FS1','FS2','FS3','FS4']:
+    obs_levels[pid].plot(ax=ax1,label=pid)
+
+ax1.set_ylabel('m NGF')
+ax1.legend(loc='upper right')
+
+
+for pid in ['PS1','PS2','PS3','FS4']:
+    obs_levels[pid].plot(ax=ax2,label=pid)
+
+ax2.set_ylabel('m NGF')
+ax2.legend(loc='upper right')
+
+
+ax2.legend(loc='lower right')
+
+for ax in axs:
+    ax.axvline(start_date,ls='--',color='grey')
+    ax.axvline(end_date,ls='--',color='grey')
+
+fig.align_ylabels()
+fig.tight_layout()
+
+ax.set_xlim(start_date,end_date)
+
+fig.savefig(os.path.join('fig','obs_vars.pdf'),dpi=300)
+
+# --------------------------------------
+# ---- plot levels along cross-section      ----------
+# --------------------------------------
+
+fig,axs = plt.subplots(3,1,sharex=True, figsize=(10,6)) 
+
+ax0, ax1, ax2, = axs
+
+# weather 
+ax0.bar(p.index,p.values, color='darkblue', label='P')
+ax0.bar(et0.index,et0.values, color='tan', label='ET0',alpha=0.8)
+ax0.set_ylabel('mm/d')
+ax0.legend(loc='upper left')
+
+# 1st x-section
+pids = ['FS1','FS2','PS1']
+linestyles = ['--','--','-']
+cols = ['blue','orange','green']
+for pid,ls in zip(pids,linestyles):
+    l = obs_levels[pid].plot(ax=ax1,ls=ls,label=pid)
+
+ax1.set_ylabel('m NGF')
+ax1.legend(loc='upper right')
+
+# 2nd x-section
+pids = ['FS2','FS3','PS3']
+linestyles = ['--','--','-']
+cols = ['blue','orange','green']
+
+for pid,ls in zip(pids,linestyles):
+    obs_levels[pid].plot(ax=ax2, ls=ls, label=pid)
+
+ax2.set_ylabel('m NGF')
+ax2.legend(loc='upper right')
+
+
+for ax in axs:
+    ax.axvline(start_date,ls='--',color='grey')
+    ax.axvline(end_date,ls='--',color='grey')
+
+ax.set_xlim(start_date,end_date)
+
+fig.align_ylabels()
+fig.tight_layout()
+
+fig.savefig(os.path.join('fig','piezo_fs.pdf'),dpi=300)
+
+# -----------------------------------------------------------
+# ---- investigate regional hydraulic gradient     ----------
+# -----------------------------------------------------------
+
+
+bheads_df = pd.merge( obs_levels[['PS1','PS2','PS3']] ,  ades_df['F'], 
+                     left_index=True,right_index=True, 
+                     how='left')
+
+fig,axs = plt.subplots(3,1,sharex=True, figsize=(dbcol_width,dbcol_width))
+ax0, ax1, ax2 = axs
+
+bheads_df[['PS1','PS2','PS3','F']].plot(ax=ax0)
+
+bheads_df['PS1m'] = bheads_df.PS1 - bheads_df.PS1.mean()
+bheads_df['PS2m'] = bheads_df.PS2 - bheads_df.PS2.mean()
+bheads_df['PS3m'] = bheads_df.PS3 - bheads_df.PS3.mean()
+bheads_df['Fm'] = bheads_df.F - bheads_df.F.mean()
+
+bheads_df[['PS1m','PS2m','PS3m','Fm']].plot(ax=ax1)
+
+dist_PS1_F = 5400 # m 
+bheads_df['gradh'] = (bheads_df.PS1 - bheads_df.F) /dist_PS1_F
+bheads_df['gradh'].plot(ax=ax2)
+ax2.set_ylim(0.0005,0.0007)
+
+fig.align_ylabels()
+fig.tight_layout()
+
+fig.savefig(os.path.join('fig','gradh.pdf'),dpi=300)
+
+

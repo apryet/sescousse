@@ -117,7 +117,7 @@ riv:
       id_column: 'id'
       boundname_column: 'type'
     stage:
-      filename: '../gis/h_riv.tif' # should match values in riv_data.xlsx
+      filename: '../gis/dh_riv.tif' # should match values in riv_data.xlsx
       elevation_units: 'meters'
       resample_method: 'nearest'
       stat: 'mean'

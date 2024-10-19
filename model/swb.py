@@ -4,12 +4,12 @@ import pandas as pd
 
 # modified from :
 # https://github.com/soilwater/pynotes-agriscience/blob/gh-pages/exercises/soil_water_balance.ipynb
-# removed runoff, set Kc to constant, external computation of ET0
-def run_swb(clim_file='clim.csv',theta_sat = None, D_max= None, par_file=None, cwd='.'):
+# removed runoff, external computation of ET0
+def run_swb(clim_file='clim.csv',theta_sat = None, D_max= None, Kc=None, par_file=None, cwd='.'):
     # load clim data
     clim = pd.read_csv(os.path.join(cwd,clim_file),index_col=0, parse_dates=True)
     P = clim.P
-    PET = clim.PET
+    ET0 = clim.ET0 # reference evapotranspiration
 
     # set start/end dates
     start_date = clim.index.min()
@@ -21,32 +21,37 @@ def run_swb(clim_file='clim.csv',theta_sat = None, D_max= None, par_file=None, c
     z = 400 # Length of the soil profile in mm
 
     # if par_file provided, read file and set par values 
-    if par_file is not None:
+    if par_file is not None :
         # load par values 
         parvals = pd.read_csv('par.dat',header=None,delim_whitespace=True,index_col=0)[1]
         # set parameter values 
         theta_sat = parvals.loc['tsat']
         D_max = parvals.loc['dmax']
+        Kc = parvals.loc['kc']
 
     # characteristic water contents
-    if theta_sat is None: 
+    if theta_sat is None : 
         theta_sat = 0.40
 
     # Maximum daily drainage rate [mm/d]
-    if D_max is None: 
+    if D_max is None : 
         D_max = 25 
+
+    # crop coefficient
+    if Kc is None : 
+        Kc = 1.
 
     # with adjustable theta_sat, fc and r have to be defined as ratios to avoid conflicts
     # (estimates deserve to be refined)
     theta_fc = 0.5*theta_sat
     theta_r  = 0.2*theta_sat
 
-    # crop coefficient 
-    Kc = 1.0 # REF? 
-
     S_max =theta_sat*z # Saturation
     FC = theta_fc*z  # Field capacity
     PWP = theta_r*z # Permanent Wilting Point
+
+    # Compute PET from crop coefficient (Kc) reference PET (ET0)
+    PET = ET0*Kc
 
     # allocate arrays with NaN values
     N = sim_dates.shape[0]
@@ -58,7 +63,7 @@ def run_swb(clim_file='clim.csv',theta_sat = None, D_max= None, par_file=None, c
 
     # Define initial conditions
     S[0] = FC # field capacity
-    T[0] = PET[0]*Kc # transpiration from soil
+    T[0] = PET[0] # transpiration from soil
     D[0] = D_max*(S[0]/S_max)**((D_max/S_max - 1)/(-D_max/S_max)) # soil drainage
     F[0] = np.maximum(S[0]-S_max,0) # soil fast drainage
     R[0] = D[0] + F[0] # groundwater recharge
@@ -72,7 +77,7 @@ def run_swb(clim_file='clim.csv',theta_sat = None, D_max= None, par_file=None, c
         # stress coefficient
         Ks = np.maximum(1 - np.exp(-10*PAW), 0)
         # transpiration 
-        T[t] = PET[t] * Kc * Ks
+        T[t] = PET[t] * Ks
         # update soil water content 
         S[t] = max(S[t-1] + P[t] - T[t] - D[t],0)
         D[t] = S[t-1] - S[t] + P[t] - T[t] 

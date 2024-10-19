@@ -35,6 +35,8 @@ def get_indic(sim_dir):
     idomain = idomain_rast.resample_to_grid(ml.modelgrid, band=1, method='nearest')
     idomain_3d = np.stack([idomain]*nper) # transient idomain 
     dtm = dtm_rast.resample_to_grid(ml.modelgrid, band=1, method='nearest')
+    # number of cells in domain of interest (idomain==3)
+    ncells = (idomain==3).sum()
     # critical levels 
     z_w = dtm - depth_w # m NGF
     z_d = dtm - depth_d # m NGF
@@ -45,8 +47,8 @@ def get_indic(sim_dir):
     # masked head array out of area of interest (idomain==3)
     mhds = np.ma.masked_where(idomain_3d<3, hds[:,0,:,:])
     # records of spatially averaged water excess/stress
-    w_records = ((mhds-z_w)*(mhds>z_w)).sum(axis=(1,2))/(mhds>z_w).sum()*1000
-    d_records = ((mhds-z_d)*(mhds<z_d)).sum(axis=(1,2))/(mhds<z_d).sum()*1000
+    w_records = ((mhds-z_w)*(mhds>z_w)).sum(axis=(1,2))/ncells*1000
+    d_records = ((mhds-z_d)*(mhds<z_d)).sum(axis=(1,2))/ncells*1000
     # aggregate in df
     df = pd.DataFrame({'w':w_records,'d':d_records},index=dates_out)
     return(df)
@@ -68,9 +70,13 @@ for l,d in dirs.items():
 
 
 # plot 
-lss = {'cal':'-','nodrn':':','drn110':'--'}
+lss = {'cal':'-','nodrn':':','drn110':'--','drn40':'-.'}
 
 fig,ax =plt.subplots(1,1,figsize=(dbcol_width,mdcol_width))
+
+dirs = {'drn110':'drn110',
+        'drn40':'drn40'}
+
 
 for l,d in dirs.items():
     df = indics[l]
@@ -80,7 +86,7 @@ for l,d in dirs.items():
     ax.set_ylabel('Water excess / deficit [mm]')
     ax.legend()
 
-ax.set_ylim(-5,5)
+#ax.set_ylim(-5,5)
 
 fig.savefig(os.path.join('fig','indics_records.pdf'),dpi=300)
 

@@ -67,9 +67,11 @@ def set_mf_par_vals():
         # western bc
         idx = ghb_rec['boundname']=='w'
         ghb_rec['cond'][idx] = parvals.loc['cghbw']
+        ghb_rec['bhead'][idx] = ghb_rec['bhead'][idx] + parvals['dhghbw']
         # eastern bc
         idx = ghb_rec['boundname']=='e'
         ghb_rec['cond'][idx] = parvals.loc['cghbe']
+        ghb_rec['bhead'][idx] = ghb_rec['bhead'][idx] + parvals['dhghbe']
 
     # update values 
     ml.ghb.stress_period_data.set_data(ghb_spd)
@@ -83,12 +85,17 @@ def set_mf_par_vals():
 
     drn.stress_period_data.set_data(drn_spd)
 
-    # set criv
+    # set criv and hriv
     print('Setting criv values...')
     riv = ml.get_package('riv')
     riv_spd = riv.stress_period_data.get_data()
     for i in riv_spd.keys():
         riv_spd[i]['cond'] = parvals.loc['criv']
+        riv_spd[i]['stage'] = riv_spd[i]['stage'] + parvals.loc['dhriv']
+        # adjust river bottom to avoid hriv < rbot
+        riv_spd[i]['rbot'] = np.minimum(riv_spd[i]['stage']-0.01,riv_spd[i]['rbot'])
+        # adjust river bottom to limit stream to aquifer flow  
+        #riv_spd[i]['rbot'] = riv_spd[i]['stage']-0.01
 
     riv.stress_period_data.set_data(riv_spd)
 

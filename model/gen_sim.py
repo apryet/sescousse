@@ -44,10 +44,10 @@ success, buff = sim.run_simulation(report=True)
 # ------------------------------------------------------
 
 #  sim dir 
-sim_dir = 'drn40'
+sim_dir = 'drn110'
 
 # drainage depth from surface (dtm) 
-dd = 0.40 # 
+dd = 1.10 # 
 
 # cp simulation from template 
 if not os.path.exists(sim_dir):

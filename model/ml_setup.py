@@ -32,11 +32,21 @@ drn_rec0 = drn.stress_period_data.get_data()[0]
 drn_rec0['cond'] = parvals.loc['cdrn']
 ml.drn.stress_period_data.set_data({0:drn_rec0})
 
-# set criv
+# set riv data 
 riv = ml.get_package('riv_0')
 riv_rec0 = riv.stress_period_data.get_data()[0]
 riv_rec = riv_rec0.copy()
-riv_rec['cond'] = parvals.loc['criv']
+# set criv
+riv_rec['cond'] = parvals.loc['criv'] # criv
+# set hriv
+riv_ref_value = 20.66 # lowest level recorded at h_fs4(t)
+riv_rec['stage'] = riv_rec0['stage']+riv_ref_value
+# set rbot 1 cm below low flow river level
+riv_rec['rbot'] =  riv_rec['stage'] - 0.01
+
+# update values 
+riv.stress_period_data.set_data({0:riv_rec})
+
 
 # ghb
 print('Setting cghb values...')
@@ -44,11 +54,11 @@ ghb_rec0 = ml.ghb.stress_period_data.get_data()[0]
 # western bc
 idx = ghb_rec0['boundname']=='w'
 ghb_rec0['cond'][idx] = parvals.loc['cghbw']
-ghb_rec0['bhead'][idx] = parvals.loc['hghbw']
+#ghb_rec0['bhead'][idx] = parvals.loc['hghbw']
 # eastern bc
 idx = ghb_rec0['boundname']=='e'
 ghb_rec0['cond'][idx] = parvals.loc['cghbe']
-ghb_rec0['bhead'][idx] = parvals.loc['hghbe']
+#ghb_rec0['bhead'][idx] = parvals.loc['hghbe']
 # update values 
 ml.ghb.stress_period_data.set_data({0:ghb_rec0})
 

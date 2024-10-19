@@ -289,11 +289,15 @@ idx = obs.obsnme.str.contains('fcst')
 obs.loc[idx,'weight'] = 0
 
 # --- further PEST settings 
-pst.pestpp_options['uncertainty']='False'
+pst.pestpp_options['uncertainty']='True'
+
+# extend parameter bounds 
+par.loc[par.index,'parlbnd'] = pdata.loc[par.index,'parlbnd']
+par.loc[par.index,'parubnd'] = pdata.loc[par.index,'parubnd']
 
 # regularization settings (for regularization mode)
 #pst.reg_data.phimlim = pst.nnz_obs
-pst.reg_data.phimlim = 3e4 
+pst.reg_data.phimlim = 1e4 
 pst.reg_data.phimaccept = pst.reg_data.phimlim*1.1
 pst.reg_data.fracphim = 0.1
 pst.reg_data.wfmin = 1.0e-10
@@ -308,6 +312,9 @@ pst.svd_data.eigthresh = 1e-6
 # adjust derinc for jacobian computation
 pst.parameter_groups.loc[:,'derinc']=0.10
 pst.parameter_groups.loc[:,'forcen']='always_3'
+
+pst.parameter_groups.loc['dh','inctyp']='absolute'
+pst.parameter_groups.loc['dh','derinc']=0.05
 
 # implement prefered value regularization
 pyemu.helpers.zero_order_tikhonov(pst)
