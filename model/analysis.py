@@ -72,7 +72,8 @@ hobs = pd.read_csv(obs_file,index_col=0,parse_dates=True)
 # -------------------------------------
 
 # load drain flow 
-zone_surf = delr*delc*(idomain>1).sum()
+#zone_surf = delr*delc*(idomain>1).sum()
+zone_surf = 1071422
 drnobs = pd.read_csv('sescousse.drn.obs.output.csv',index_col=0)
 drnobs.index = dates_out
 drnobs['flow']= drnobs.sum(axis=1)*(-1/zone_surf*1000*86400) # m3/s to mm/d
@@ -157,7 +158,6 @@ depth_d = 1.5 # water stress
 z_w = dtm - depth_w
 z_d = dtm - depth_d
 
-
 # --- plot head records at PS1 with critical depths 
 
 fig,ax =plt.subplots(1,1,figsize=(dbcol_width,dbcol_width/2))
@@ -205,8 +205,10 @@ zm = mdtm.mean()
 hm = mhds.mean(axis=(1,2))
 
 # records of spatially averaged water excess/stress
-w_records = ((mhds-z_w)*(mhds>z_w)).sum(axis=(1,2))/(mhds>z_w).sum()*1000
-d_records = ((mhds-z_d)*(mhds<z_d)).sum(axis=(1,2))/(mhds<z_d).sum()*1000
+ncells = (idomain==3).sum()
+w_records = ((mhds-z_w)*(mhds>z_w)).sum(axis=(1,2))/ncells
+d_records = ((mhds-z_d)*(mhds<z_d)).sum(axis=(1,2))/ncells
+
 
 # cumulated water excess/stress 
 w = w_records.sum()
@@ -216,7 +218,7 @@ fig,ax =plt.subplots(1,1,figsize=(dbcol_width,dbcol_width/2))
 
 ax.plot(dates_out,w_records,color='darkblue',label='Water excess')
 ax.plot(dates_out,d_records,color='darkorange',label='Water deficit')
-ax.set_ylabel('Water excess / deficit [mm]')
+ax.set_ylabel('Water excess / deficit [m]')
 ax.legend()
 fig.tight_layout()
 
@@ -270,7 +272,7 @@ for n,i in enumerate(range(0,hds.shape[0],1)):
     twax0.plot(hobs.index,hobs.FS4,color='darkred',label='FS4')
     twax0.set_ylabel('m NGF')
     twax0.set_xlim(swb.index.min(),swb.index.max())
-    twax0.xaxis.set_major_formatter(mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
+    twax0.xaxis.set_major_formatter(mdates.ConciseDateFormatter(ax0.xaxis.get_major_locator()))
     # map
     modelmap = flopy.plot.PlotMapView(model=ml, ax=ax1)
     ax1.set_xlim(385600., 387500.)
@@ -294,7 +296,6 @@ for n,i in enumerate(range(0,hds.shape[0],1)):
 #---  map of groundwater depth
 # -------------------------------------
 
-'''
 gwdmaps_dir = os.path.join('fig','gwdmaps')
 
 if not os.path.exists(gwdmaps_dir):
@@ -304,16 +305,27 @@ gwd = dtm - hds
 
 # 2D map of gw depth 
 for n,i in enumerate(range(0,hds.shape[0],1)):
-    fig = plt.figure(figsize=(10, 10))
-    ax = fig.add_subplot(1, 1, 1, aspect="equal")
-    modelmap = flopy.plot.PlotMapView(model=ml, ax=ax)
-    ax.set_xlim(385600., 387500.)
-    ax.set_title('Profondeur nappe / sol ' + dates_out[i].strftime("%d-%m-%Y"))
+    fig,axs = plt.subplots(2, 1, gridspec_kw={'height_ratios': [1, 3]}, figsize=(9,9)) 
+    # records with time line 
+    ax0, ax1 = axs
+    ax0.bar(swb.index,swb.P,color='darkblue',label='Precipitations')
+    ax0.set_ylabel('mm/d')
+    ax0.axvline(dates_out[i],color='k',linewidth=2,linestyle='--')
+    twax0 = ax0.twinx()
+    twax0.plot(hobs.index,hobs.FS4,color='darkred',label='FS4')
+    twax0.set_ylabel('m NGF')
+    twax0.set_xlim(swb.index.min(),swb.index.max())
+    twax0.xaxis.set_major_formatter(mdates.ConciseDateFormatter(ax0.xaxis.get_major_locator()))
+    # map
+    modelmap = flopy.plot.PlotMapView(model=ml, ax=ax1)
+    ax1.set_xlim(385600., 387500.)
+    ax1.set_title('Profondeur nappe / sol ' + dates_out[i].strftime("%d-%m-%Y"))
     gwd2d = gwd[i,0,:,:]
     gwd2d[idomain < 2]=np.nan
     pa = modelmap.plot_array(gwd2d, vmin=0,vmax=2,cmap='viridis')
     cb = plt.colorbar(pa, shrink=0.5)
-    cb.set_label('m NGF')
+    cb.set_label('Groundwater depth')
+    ax1.set_aspect(1)    
     fig.savefig(os.path.join(gwdmaps_dir,f'gwd_{n}.png'))
     plt.close()
 
@@ -352,12 +364,11 @@ for i,n in enumerate(range(0,nper,7)):
     fig.savefig(os.path.join(surfmaps_dir,f'hsurf_{i}.png'),dpi=128)
 
 #convert 'hsurf_%d.png[0-50]' -scale 1066x800 -delay 20 -coalesce -layers Optimize -fuzz 2% +dither hsurf.gif
-'''
+
 # -------------------------------------
 #---  x-section through PS1
 # -------------------------------------
 
-'''
 xsects_dir = os.path.join('fig','xsects')
 
 if not os.path.exists(xsects_dir):
@@ -369,25 +380,35 @@ obs_df = pd.DataFrame(ml.obs[0].continuous.data['sescousse.head.csv'])
 obs_df = obs_df.set_index('obsname')
 ps1_row = obs_df.loc['ps1','id'][1] - 1 # 0-based col
 
-hmin,hmax=19,22
+hmin,hmax=19.5,22
 
-for n,i in enumerate(range(0,hds.shape[0],14)):
-    fig,ax = plt.subplots(1,1,figsize=(dbcol_width,dbcol_width/2))
+for n,i in enumerate(range(0,hds.shape[0],1)):
+    fig,axs = plt.subplots(2, 1, gridspec_kw={'height_ratios': [1, 3]}, figsize=(7,7)) 
+    # records with time line 
+    ax0, ax1 = axs
+    ax0.bar(swb.index,swb.P,color='darkblue',label='Precipitations')
+    ax0.set_ylabel('mm/d')
+    ax0.axvline(dates_out[i],color='k',linewidth=2,linestyle='--')
+    twax0 = ax0.twinx()
+    twax0.plot(hobs.index,hobs.FS4,color='darkred',label='FS4')
+    twax0.set_ylabel('m NGF')
+    twax0.set_xlim(swb.index.min(),swb.index.max())
+    twax0.xaxis.set_major_formatter(mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
+    # map
     hds2d = hds[i,0,:,:]
-    xsect = flopy.plot.PlotCrossSection(model=ml, line={"Row": ps1_row})
+    xsect = flopy.plot.PlotCrossSection(model=ml,ax=ax1,line={"Row": ps1_row})
     pc = xsect.plot_array(hds2d, head=hds2d, alpha=1)
     bc=  xsect.plot_bc('drn',color='tan',alpha=0.7)
     bc=  xsect.plot_bc('riv',color='blue',alpha=0.7)
-    ax.set_xlim(190,1040)
-    ax.set_ylim(hmin,hmax)
+    ax1.set_xlim(190,1040)
+    ax1.set_ylim(hmin,hmax)
     linecollection = xsect.plot_grid(alpha=0.5)
     cb = plt.colorbar(pc, shrink=0.75)
     cb.set_label('m NGF')
     fig.savefig(os.path.join(xsects_dir,f'xsect_{n}.png'))
     plt.close()
 
-#convert 'xsect_%d.png[0-265]' -scale 1066x800 -delay 20 -coalesce -layers Optimize -fuzz 2% +dither hmap.gif
+#convert 'xsect_%d.png[0-352]' -scale 1066x800 -delay 20 -coalesce -layers Optimize -fuzz 2% +dither hmap.gif
 
 
-'''
 

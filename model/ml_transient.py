@@ -56,17 +56,17 @@ parvals = pdata['val']
 #stjean_file=os.path.join('..','data','stjean_daily.csv')
 #stjean_df = pd.read_csv(stjean_file, header=[0,1], index_col=0, parse_dates=True)
 
-# ETP from Meteo-France
+# ET0 from Meteo-France (Mérignac Station)
 et0_file=os.path.join('..','data','ET0_daily.csv')
-et0_df = pd.read_csv(et0_file,header=[0],sep=';')
+et0_df = pd.read_csv(et0_file,header=[0],sep=',')
 et0_df.index = pd.DatetimeIndex(pd.to_datetime(et0_df.date,format='%d/%m/%Y')).date
-et0 = et0_df['ETP']
+et0 = et0_df['ET0']
 
-# P from Meteo-France
+# P from Meteo-France (Mérignac Station)
 p_file=os.path.join('..','data','P_daily.csv')
-p_df = pd.read_csv(p_file,parse_dates=True,header=[0],sep=';')
+p_df = pd.read_csv(p_file, header=[0],sep=',')
 p_df.index = pd.DatetimeIndex(pd.to_datetime(p_df.date,format='%d/%m/%Y')).date
-p = p_df['Merignac']
+p = p_df['P']
 
 # save to single clim file over simulation period
 clim_df = pd.DataFrame({'P':p.loc[sim_dates].values,'ET0':et0.loc[sim_dates].values},index=sim_dates)
@@ -211,7 +211,9 @@ ghb = ml.get_package('ghb_0')
 ghb_rec0 = ghb.stress_period_data.get_data()[0]
 
 # fluctuations to reference level
-ghb_dh = ades_df.F - ades_df.loc[start_date,'F'] # start_date at low flow
+
+ref_ades_level 
+ghb_dh = ades_df.F - ades_df.loc[start_date,'F'] # start_date at low flow, 2023-10-15 (see report)
 ghb_dh = ghb_dh.reindex(sim_dates) # re-index with simulation dates
 ghb_dh = ghb_dh.interpolate() # gap filling by linear interpolation over simulation period
 

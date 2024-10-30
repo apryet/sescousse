@@ -15,19 +15,17 @@ dbcol_width = 19/2.54
 # load data
 # -------------------------------------------------
 
-# load climate forcings 
-stjean_file=os.path.join('..','data','stjean_daily.csv')
-stjean_df = pd.read_csv(stjean_file, header=[0,1], index_col=0, parse_dates=True)
+# P from Meteo-France (Mérignac Station)
+p_file=os.path.join('..','data','P_daily.csv')
+p_df = pd.read_csv(p_file, header=[0],sep=',')
+p_df.index = pd.DatetimeIndex(pd.to_datetime(p_df.date,format='%d/%m/%Y'))
+P = p_df['P']
 
-# ETP from Meteo-France
-mf_file=os.path.join('..','data','ETP_daily.csv')
-mf_df = pd.read_csv(mf_file,parse_dates=True,header=[0],sep=';')
-mf_df.index = pd.to_datetime(mf_df.date,format='%d/%m/%Y')
-
-P = stjean_df.loc[:,('Rain_mm_Tot','sum')]
-P.name = 'P'
-PET = mf_df.loc[:,'ETP']
-
+# ET0 from Meteo-France (Mérignac Station)
+et0_file=os.path.join('..','data','ET0_daily.csv')
+et0_df = pd.read_csv(et0_file,header=[0],sep=',')
+et0_df.index = pd.DatetimeIndex(pd.to_datetime(et0_df.date,format='%d/%m/%Y'))
+ET0 = et0_df['ET0']
 
 # -------------------------------------------------
 # model for FS4 
@@ -36,17 +34,20 @@ PET = mf_df.loc[:,'ETP']
 # load measured gw levels at FS4
 levels_file = os.path.join('..','data','levels_daily.csv')
 levels = pd.read_csv(levels_file,header=[0,1],index_col=0,parse_dates=True)
-obs_levels = levels.xs('h',axis=1)['FS4'].dropna()
+FS4 = levels.xs('h',axis=1)['FS4'].dropna()
 
+# set values to nan when probe is dry
+idx = (FS4.index > pd.to_datetime('2024-08-02')) & (FS4.index < pd.to_datetime('2024-09-24'))
+FS4.loc[idx] = np.nan
 
 # calibration period
 start_date = pd.to_datetime('2023-10-15')
-end_date = pd.to_datetime('2024-07-06')
+end_date = pd.to_datetime('2024-10-01')
 
 #model setup
-ml = ps.Model(obs_levels.loc[start_date:end_date], name="FS4")
+ml = ps.Model(FS4.loc[start_date:end_date], name="FS4")
 
-sm = ps.RechargeModel(prec=P,evap=PET,
+sm = ps.RechargeModel(prec=P,evap=ET0,
                       rfunc=ps.rfunc.FourParam(), 
                        name="recharge",  
                        recharge=ps.rch.Peterson(),
@@ -65,6 +66,11 @@ fig.savefig(os.path.join('fig','cal_FS4.pdf'),dpi=300)
 biais = ml.residuals().mean()
 print(biais)
 
+# simulation over  historical period 
+sim_FS4 = ml.simulate(tmin='1950-01-01',tmax='2024-10-14')
+sim_FS4.name = 'h'
+sim_FS4.to_csv('sim_FS4.csv')
+
 # -------------------------------------------------
 # model for F ADES 
 # -------------------------------------------------
@@ -77,13 +83,13 @@ ades_df.index = pd.to_datetime(ades_df.date,format='%d/%m/%Y')
 ades = ades_df['F'].sort_index()
 
 # calibration period
-start_date = pd.to_datetime('2023-10-15')
-end_date = pd.to_datetime('2024-07-06')
+start_date = pd.to_datetime('2019-01-23')
+end_date = pd.to_datetime('2024-10-14')
 
 #model setup
 ml = ps.Model(ades.loc[start_date:end_date], name="ADES")
 
-sm = ps.RechargeModel(prec=P,evap=PET,
+sm = ps.RechargeModel(prec=P,evap=ET0,
                       rfunc=ps.rfunc.Exponential(),
                        name="recharge",  
                        recharge=ps.rch.Linear(),
@@ -95,20 +101,25 @@ ml.add_stressmodel(sm)
 ml.solve(tmin=start_date,tmax=end_date)
 fig = ml.plot().get_figure()
 
-
 fig.savefig(os.path.join('fig','cal_ADES.pdf'),dpi=300)
 
 biais = ml.residuals().mean()
 print(biais)
 
+# simulation over  historical period 
+sim_ADES = ml.simulate(tmin='1950-01-01',tmax='2024-10-14')
+sim_ADES.name = 'h'
+sim_ADES.to_csv('sim_ADES.csv')
+
 
 # -------------------------------------------------
-# simulation 
+# simulation over  prospective period 
 # -------------------------------------------------
+
 
 mlsim = ps.Model(gw_df.loc[tmin:tmax,'h'], name="GWL")
 
-sm_drias = ps.RechargeModel(prec=drias_df['P'],evap=drias_df['PET'],
+sm_drias = ps.RechargeModel(prec=drias_df['P'],evap=drias_df['ET0'],
                        rfunc=ps.Exponential(), 
                        name="recharge",  
                        recharge=ps.rch.Linear(),

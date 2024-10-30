@@ -44,10 +44,10 @@ success, buff = sim.run_simulation(report=True)
 # ------------------------------------------------------
 
 #  sim dir 
-sim_dir = 'drn110'
+sim_dir = 'drn210'
 
 # drainage depth from surface (dtm) 
-dd = 1.10 # 
+dd = 2.1 # 
 
 # cp simulation from template 
 if not os.path.exists(sim_dir):
@@ -72,7 +72,7 @@ rec0 = drn_spd[0].copy()
 rec0['elev'] = [dtm[x['cellid'][1],x['cellid'][2]]-dd for x in rec0]
 
 # set drain spd 
-drn_spd = drn.stress_period_data.set_data({0:rec0})
+drn.stress_period_data.set_data({i:rec0 for i in range(nper)}) 
 
 # make sure budget and heads are saved
 ml.oc.saverecord = {k:[('HEAD','LAST'), ('BUDGET','LAST')]for k in range(nper)}

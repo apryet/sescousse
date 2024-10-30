@@ -47,8 +47,8 @@ def get_indic(sim_dir):
     # masked head array out of area of interest (idomain==3)
     mhds = np.ma.masked_where(idomain_3d<3, hds[:,0,:,:])
     # records of spatially averaged water excess/stress
-    w_records = ((mhds-z_w)*(mhds>z_w)).sum(axis=(1,2))/ncells*1000
-    d_records = ((mhds-z_d)*(mhds<z_d)).sum(axis=(1,2))/ncells*1000
+    w_records = ((mhds-z_w)*(mhds>z_w)).sum(axis=(1,2))/ncells
+    d_records = ((mhds-z_d)*(mhds<z_d)).sum(axis=(1,2))/ncells
     # aggregate in df
     df = pd.DataFrame({'w':w_records,'d':d_records},index=dates_out)
     return(df)
@@ -60,8 +60,26 @@ def get_indic(sim_dir):
 # comparison sim dirs 
 dirs = {'cal':'master_glm',
         'nodrn':'nodrn',
+        'drn40':'drn40',
         'drn110':'drn110',
-        'drn40':'drn40'}
+        'drn210':'drn210',
+        'drn300':'drn300'
+        }
+
+
+# comparison sim dirs 
+dirs = {'nodrn':'nodrn_histo',
+        'drn40':'drn40_histo',
+        'drn110':'drn110_histo',
+        }
+
+
+# comparison sim dirs 
+dirs = {
+        'drn110':'drn110_histo'
+        }
+        
+
 
 # compute indicators 
 indics={}
@@ -69,36 +87,48 @@ for l,d in dirs.items():
     indics[l] = get_indic(d)
 
 
+'''
+from multiprocessing import Process
+
+processes = []
+
+for m in range(1,16):
+   n = m + 1
+   p = Process(target=some_function, args=(m, n))
+   p.start()
+   processes.append(p)
+
+'''
+
+
 # plot 
-lss = {'cal':'-','nodrn':':','drn110':'--','drn40':'-.'}
+colors = {'cal':'k','nodrn':'darkblue','drn40':'darkgreen','drn110':'red','drn210':'darkred','drn300':'purple'}
+lss = {'cal':'-','nodrn':'-','drn40':'-','drn110':'-','drn210':'-','drn300':'-'}
 
-fig,ax =plt.subplots(1,1,figsize=(dbcol_width,mdcol_width))
 
-dirs = {'drn110':'drn110',
-        'drn40':'drn40'}
-
+fig,ax =plt.subplots(1,1,figsize=(dbcol_width,0.5*dbcol_width))
 
 for l,d in dirs.items():
     df = indics[l]
     dates_out, w_records, d_records = df.index,df.w,df.d
-    ax.plot(dates_out,w_records,color='darkblue',ls=lss[l],label=f'{l} Water excess',alpha=0.8)
-    ax.plot(dates_out,d_records,color='darkorange',ls=lss[l],label=f'{l} Water deficit',alpha=0.8)
-    ax.set_ylabel('Water excess / deficit [mm]')
+    ax.plot(dates_out,w_records,color=colors[l],ls=lss[l],label=f'{l}',alpha=0.8)
+    ax.plot(dates_out,d_records,color=colors[l],ls=lss[l],alpha=0.8)
+    ax.set_ylabel('Deficit / Excess  [m]')
     ax.legend()
 
 #ax.set_ylim(-5,5)
-
 fig.savefig(os.path.join('fig','indics_records.pdf'),dpi=300)
 
 
-indics_cum = pd.DataFrame({'wcum':[ df['w'].sum() for df in indics.values()],
-'dcum':[ df['d'].sum() for df in indics.values()]},
-             index = indics.keys())
-
+nyears = 1
+indics_cum = pd.DataFrame({
+    'wcum':[ indics[l]['w'].sum() for l in dirs.keys()],
+    'dcum':[ indics[l]['d'].sum() for l in dirs.keys()]
+    }, index = list(dirs.keys())).div(nyears)
 
 fig,ax = plt.subplots(1,1,figsize=(mdcol_width,mdcol_width))
-indics_cum.plot(ax=ax,kind='bar')
-ax.set_ylabel('Hauteur d\'eau cumulée [mm]')
+indics_cum.plot(ax=ax,kind='bar',color=['darkblue','tan'])
+ax.set_ylabel('Deficit / Excess [m$\\times$j/an]')
 fig.tight_layout()
 fig.savefig(os.path.join('fig','indics_cum.pdf'),dpi=300)
 

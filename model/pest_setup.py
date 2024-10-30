@@ -338,6 +338,7 @@ else :
 
 # IES settings 
 pst.pestpp_options['ies_num_reals'] = prior_pe.shape[0]
+pst.pestpp_options['ies_bad_phi'] = 4e4 # refine this ! 
 pst.pestpp_options['ies_parameter_ensemble'] = 'prior_pe.jcb'
 pst.pestpp_options['ies_observation_ensemble'] = 'oe.jcb'
 pst.pestpp_options['ies_n_iter_mean'] = 2

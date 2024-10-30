@@ -110,7 +110,7 @@ for ax,loc in zip(axs.ravel(),hsim.columns):
                                  ls='',color='darkblue')
     ax.set_xlim(hsim.date.min(),hsim.date.max())
     ax.set_title(loc)
-    ax.set_ylim(19.,22.4)
+    #ax.set_ylim(19.,22.4)
 
 axs[0,0].axhline(20.86,ls='--',color='grey')
 axs[0,1].axhline(20.77,ls='--',color='grey')
