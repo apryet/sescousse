@@ -8,7 +8,7 @@ import flopy
 
 # plot settings
 plt.rc('font', family='serif', size=9)
-sgcol_width = 9/2.54
+sgcol_width = 9/2.54@
 mdcol_width = 14/2.54
 dbcol_width = 19/2.54
 
@@ -20,11 +20,12 @@ nper = sim.tdis.nper.data
 delr = ml.dis.delr[0]
 delc = ml.dis.delc[0]
 
+'''
 # set output control and re-reun model 
 ml.oc.saverecord = {k:[('HEAD','LAST'), ('BUDGET','LAST')]for k in range(nper)}
 sim.write_simulation()
 success, buff = sim.run_simulation(report=True)
-
+'''
 # load idomain raster
 idomain_file = os.path.join('..','..','gis','idomain.tif') 
 idomain_rast = flopy.utils.Raster.load(idomain_file)
@@ -66,7 +67,7 @@ hsim.index = hsim.date
 obs_file = os.path.join('obs_levels.csv')
 hobs = pd.read_csv(obs_file,index_col=0,parse_dates=True)
 
-
+'''
 # -------------------------------------
 #--- drn records 
 # -------------------------------------
@@ -145,7 +146,7 @@ ax2.legend()
 
 fig.tight_layout()
 fig.savefig(os.path.join('fig','wswb_pet_et_ru.pdf'),dpi=300)
-
+'''
 # -------------------------------------
 #--- indicators
 # -------------------------------------
@@ -191,7 +192,7 @@ ax.set_ylabel('Elevation [m NGF]')
 
 fig.savefig(os.path.join('fig','critical_levels_PS1.pdf'),dpi=300)
 
-
+'''
 # --- plot indicator records 
 
 # masked head array over area of interest (idomain=3)
@@ -411,4 +412,4 @@ for n,i in enumerate(range(0,hds.shape[0],1)):
 #convert 'xsect_%d.png[0-352]' -scale 1066x800 -delay 20 -coalesce -layers Optimize -fuzz 2% +dither hmap.gif
 
 
-
+'''

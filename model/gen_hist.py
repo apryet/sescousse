@@ -9,7 +9,7 @@ import swb
 tpl_dir = 'drn110'
 
 # simulation directory
-sim_dir = 'drn110_histo'
+sim_dir = 'histo_drn110'
 
 # cp simulation from template 
 if not os.path.exists(sim_dir):
@@ -18,7 +18,7 @@ else:
     print('Failed to copy, directory exists')
 
 # set sim start end dates 
-start_date = pd.to_datetime('2004-10-15').date()
+start_date = pd.to_datetime('2004-10-01').date()
 end_date = pd.to_datetime('2024-09-30').date()
 sim_dates = pd.date_range(start_date,end_date).date
 
@@ -103,8 +103,7 @@ evta.rate.set_data({i:evt[i] for i in range(nper)})
 drn = ml.get_package('drn_0')
 drn_spd = drn.stress_period_data.get_data()
 rec0 = drn_spd[0]
-drn.stress_period_data.set_data({i:None for i in range(nper)})
-drn.stress_period_data.set_data({0:rec0,1:rec0},autofill=False)
+drn.stress_period_data.set_data({i:rec0 for i in range(nper)})
 
 # --- river network 
 
@@ -163,6 +162,6 @@ sim.set_sim_path(sim_dir)
 sim.write_simulation()
 
 # -- run simulation 
-success, buff = sim.run_simulation(report=True)
+#success, buff = sim.run_simulation(report=True)
 
 
