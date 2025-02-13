@@ -4,12 +4,21 @@ import pandas as pd
 from matplotlib import pyplot as plt
 import flopy
 import swb
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--tpl_dir')
+parser.add_argument('--sim_dir')
+args = parser.parse_args()
+
+tpl_dir = args.tpl_dir
+sim_dir = args.sim_dir
 
 # template dir 
-tpl_dir = 'drn110'
+#tpl_dir = 'drn110'
 
 # simulation directory
-sim_dir = 'histo_drn110'
+#sim_dir = 'histo_drn110'
 
 # cp simulation from template 
 if not os.path.exists(sim_dir):

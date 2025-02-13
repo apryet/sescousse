@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 import flopy
+import shapefile
 
 # load dtm raster
 dtm_file = os.path.join('..','gis','dtm_no_drn_ext_trim_filt.tif') 
@@ -54,7 +55,7 @@ success, buff = sim.run_simulation(report=True)
 # ------------------------------------------------------
 
 # generate simulation with drainage depth dd (m from surface)
-def gen_sim(dd,tpl_dir):
+def set_dd(dd,tpl_dir):
 
     #  sim dir 
     sim_dir = f'drn{int(dd*100)}'
@@ -82,7 +83,7 @@ def gen_sim(dd,tpl_dir):
     drn.stress_period_data.set_data({i:rec0 for i in range(nper)}) 
 
     # make sure budget and heads are saved
-    ml.oc.saverecord = {k:[('HEAD','LAST'), ('BUDGET','LAST')]for k in range(nper)}
+    ml.oc.saverecord = {k:[('HEAD','LAST'), ('BUDGET','LAST')] for k in range(nper)}
 
     # write new simulation and run 
     sim.write_simulation()
@@ -90,64 +91,92 @@ def gen_sim(dd,tpl_dir):
 
 
 
-for dd in [0.4,1.10,1.50,2.0,3.0]: gen_sim(dd,tpl_dir)
-
+for dd in [0.4,1.10,1.50,2.0,3.0]: set_dd(dd,tpl_dir)
 
 
 # ----------------------------------------
 # ---- alternative drainage network 
 # ----------------------------------------
 
+# generate simulation with alternative drainage network (dn) and depth (dd, m from land surface)
+def set_dn(dn_shp_name, dd, tpl_dir):
+    '''
+    dn_shp_name : name of shapefile, to be found in gis dir
+    dd : drainage depth
+    '''
 
-#  sim dir 
-sim_dir = 'drn_110'
+    #  sim dir 
+    dn_suffix = dn_shp_name.split('.')[0].split('_')[-1] # yields "hd" or "ld"
+    sim_dir = f'drn_alt_{dn_suffix}_{int(dd*100)}' # yields e.g. "drn_alt_ld_110"
 
-# from notebook, deserves sorting 
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-import numpy as np
-import shapely
-from shapely.geometry import (
-    LineString,
-    MultiLineString,
-    MultiPoint,
-    Point,
-    Polygon,
-)
+    # cp simulation from template 
+    cp_from_tpl(tpl_dir,sim_dir)
 
-import flopy
-import flopy.discretization as fgrid
-import flopy.plot as fplot
-from flopy.utils import GridIntersect
+    # load new model 
+    sim = flopy.mf6.MFSimulation.load(sim_ws=sim_dir)
+    ml = sim.get_model()
+    nper = sim.tdis.nper.data
+
+    # resample dtm to model grid 
+    dtm = dtm_rast.resample_to_grid(ml.modelgrid, band=1, method='nearest')
+
+    # load alternative drainage network
+    mg = ml.modelgrid
+    ix = flopy.utils.GridIntersect(mg,method='vertex')
+
+    drn_lines_shp = os.path.join('..','gis',dn)
+    sf = shapefile.Reader(drn_lines_shp)
+    shapes = sf.shapes()
+
+    cellids = [x['cellids'] for s in shapes for x in ix.intersects(s)]
+    rows = np.array([int(c[0]) for c in cellids]).astype(int)
+    cols = np.array([int(c[1]) for c in cellids]).astype(int)
+
+    # load original drain package 
+    drn = ml.get_package('drn_0')
+    drn_spd = drn.stress_period_data.get_data()
+    rec0 = drn_spd[0].copy()
+    cdrn = float(rec0['cond'][0])
+
+    # initialize new spd reccarray
+    dd=1. # drainage depth
+    rec0 = flopy.mf6.ModflowGwfdrn.stress_period_data.empty(ml,maxbound=len(rows),boundnames=True)[0]
+    rec0['cellid'] = [ (0,int(row),int(col)) for row,col in zip(rows,cols)]
+    rec0['elev'] = [dtm[x['cellid'][1],x['cellid'][2]]-dd for x in rec0]
+    rec0['cond'] = cdrn
+    rec0['boundname'] = 'D' # arbitrary 
+
+    # reset drainage spd
+    drn.stress_period_data.set_data({i:rec0 for i in range(nper)}) 
+    drn.maxbound = len(rows)
+
+    # make sure budget and heads are saved
+    ml.oc.saverecord = {k:[('HEAD','LAST'), ('BUDGET','LAST')] for k in range(nper)}
+
+    # write new simulation and run 
+    sim.write_simulation()
+    success, buff = sim.run_simulation(report=True)
 
 
-from flopy.utils.geospatial_utils import GeoSpatialCollection
+
+# drainage depths
+dds = [0.4,1.10]*2
+
+# drainage networks in gis dir
+dn_shp_names = ['drn_lines_hd.shp']*2+['drn_lines_dd.shp']*2
+
+for dn_shp_name,dd in zip(dn_shp_names,dds): set_dn(dn_shp_name, dd, tpl_dir)
 
 
-mg = ml.modelgrid
-ix = GridIntersect(mg)
 
-drn_lines_shpfile = os.path.join('..','gis','drn_lines.shp')
-drn_lines_gsc = GeoSpatialCollection(drn_lines_shp)
-drn_lines_geoms = drn_lines_gsc.flopy_geometry
-drn_lines_geom = drn_lines_geoms[0]
 
-ls1 = LineString([(95, 105), (30, 50)])
-ls2 = LineString([(30, 50), (90, 22)])
-ls3 = LineString([(90, 22), (0, 0)])
-mls = MultiLineString(lines=[ls1, ls2, ls3])
 
-drn_shp = 
-result = ix.intersect(drn_lines_geom)
 
-# plot 
-fig, ax = plt.subplots(1, 1, figsize=(8, 8))
-mg.plot(ax=ax)
-ix.plot_linestring(result, ax=ax, cmap="viridis")
 
-# load initial drn package 
 
-# replace drn package 
+
+
+
 
 
 

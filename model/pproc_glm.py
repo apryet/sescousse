@@ -29,7 +29,7 @@ fig,ax = plt.subplots(1,1,figsize=(sgcol_width,sgcol_width))
 phi['measurement_phi'].plot(legend=False,lw=2,color='k', ax=ax,label='Measurement $\Phi$')
 ax.set_xlabel('Itérations GLM')
 ax.set_ylabel(r'Measurement $\Phi$')
-lhm,llm = ax.get_legend_handles_labels(
+lhm,llm = ax.get_legend_handles_labels()
 twax = ax.twinx()
 phi['regularization_phi'].plot(legend=False,lw=2,ls='--',color='grey', ax=twax,label='Regul. $\Phi$')
 twax.set_ylabel(r'Regularization $\Phi$')

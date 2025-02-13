@@ -170,6 +170,11 @@ for d in dirs[1:]:
 ax.set_ylabel('Drainage rate [mm/d]')
 fig.savefig(os.path.join('fig','drn_records.pdf'),dpi=300)
 
+# save into single df 
+drnobs_df = pd.concat(drnobs.values(), axis=1, keys=drnobs.keys())
+dd = drnobs_df.loc[:,(slice(None),'flow')]
+dd.columns = dd.columns.get_level_values(0)
+dd.to_excel('sim_histo_drn.xlsx')
 
 # --- cumulated annual drainage values 
 
