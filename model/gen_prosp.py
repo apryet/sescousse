@@ -12,8 +12,7 @@ parser.add_argument('--cm')
 args = parser.parse_args()
 
 tpl_dir = args.tpl_dir
-cm = args.cm
-sim_dir = args.sim_dir
+cm = int(args.cm)
 
 # template dir 
 #tpl_dir = 'drn110'
