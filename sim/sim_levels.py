@@ -45,29 +45,29 @@ start_date = pd.to_datetime('2023-10-15')
 end_date = pd.to_datetime('2024-10-01')
 
 #model setup
-ml = ps.Model(FS4.loc[start_date:end_date], name="FS4")
+ml_riv = ps.Model(FS4.loc[start_date:end_date], name="FS4")
 
-sm = ps.RechargeModel(prec=P,evap=ET0,
+sm_riv = ps.RechargeModel(prec=P,evap=ET0,
                       rfunc=ps.rfunc.FourParam(), 
                        name="recharge",  
-                       recharge=ps.rch.Peterson(),
+                       recharge=pqs.rch.Peterson(),
                        settings=("prec", "evap")
                        ) 
 
-ml.add_stressmodel(sm)
+ml_riv.add_stressmodel(sm_riv)
 
-ml.solve(tmin=start_date,tmax=end_date)
-fig = ml.plot().get_figure()
+ml_riv.solve(tmin=start_date,tmax=end_date)
+fig = ml_riv.plot().get_figure()
 
 
 fig.savefig(os.path.join('fig','cal_FS4.pdf'),dpi=300)
 
 
-biais = ml.residuals().mean()
+biais = ml_riv.residuals().mean()
 print(biais)
 
 # simulation over  historical period 
-sim_FS4 = ml.simulate(tmin='1950-01-01',tmax='2024-10-14')
+sim_FS4 = ml_riv.simulate(tmin='1950-01-01',tmax='2024-10-14')
 sim_FS4.name = 'h'
 sim_FS4.to_csv('sim_FS4.csv')
 
@@ -87,7 +87,7 @@ start_date = pd.to_datetime('2019-01-23')
 end_date = pd.to_datetime('2024-10-14')
 
 #model setup
-ml = ps.Model(ades.loc[start_date:end_date], name="ADES")
+ml_gw = ps.Model(ades.loc[start_date:end_date], name="ADES")
 
 sm = ps.RechargeModel(prec=P,evap=ET0,
                       rfunc=ps.rfunc.Exponential(),
@@ -96,47 +96,54 @@ sm = ps.RechargeModel(prec=P,evap=ET0,
                        settings=("prec", "evap"),
                        ) 
 
-ml.add_stressmodel(sm)
+ml_gw.add_stressmodel(sm)
 
-ml.solve(tmin=start_date,tmax=end_date)
-fig = ml.plot().get_figure()
+ml_gw.solve(tmin=start_date,tmax=end_date)
+fig = ml_gw.plot().get_figure()
 
 fig.savefig(os.path.join('fig','cal_ADES.pdf'),dpi=300)
 
-biais = ml.residuals().mean()
+biais = ml_gw.residuals().mean()
 print(biais)
 
 # simulation over  historical period 
-sim_ADES = ml.simulate(tmin='1950-01-01',tmax='2024-10-14')
+sim_ADES = ml_gw.simulate(tmin='1950-01-01',tmax='2024-10-14')
 sim_ADES.name = 'h'
 sim_ADES.to_csv('sim_ADES.csv')
-
 
 # -------------------------------------------------
 # simulation over  prospective period 
 # -------------------------------------------------
 
+import glob
 
-mlsim = ps.Model(gw_df.loc[tmin:tmax,'h'], name="GWL")
+cm_df = pd.read_excel(os.path.join('..','data','clim_models.xlsx'),index_col=0)
+src_dir = os.path.join('..','data','DRIAS')
 
-sm_drias = ps.RechargeModel(prec=drias_df['P'],evap=drias_df['ET0'],
-                       rfunc=ps.Exponential(), 
-                       name="recharge",  
-                       recharge=ps.rch.Linear(),
-                       settings=("prec", "evap")
-                       ) 
+tmin, tmax = pd.to_datetime('2010-01-01'), pd.to_datetime('2100-01-01')
 
-mlsim.add_stressmodel(sm_drias)
+for cm_id,cm_tag in zip(cm_df.index,cm_df.CM):
+    # read processed DRIAS files corresponding to cm_id 
+    cm_files = [f for f in glob.iglob(os.path.join(src_dir,f'*{cm_tag}*'))]
+    # concatenate historical (<2005) and prospective (>2005) period
+    clim = pd.concat([ pd.read_csv(f,sep='\t',parse_dates=True,index_col=0) for f in cm_files])
+    clim = clim.sort_index()
+    clim.columns = ['P','PET']
+    # save clim data
+    clim.to_csv(os.path.join('prosp',f'clim_cm{cm_id:02d}.csv'))
+    # simulate FS4 with pastas
+    sm_riv = ml_riv.stressmodels['recharge']
+    sm_riv.prec = ps.timeseries.TimeSeries(df.P)
+    sm_riv.evap = ps.timeseries.TimeSeries(df.PET)
+    prosp_FS4 = ml_riv.simulate(tmin=tmin,tmax=tmax)
+    prosp_FS4.to_csv(os.path.join('prosp',f'sim_FS4_cm{cm_id:02d}.csv'))
+    # simulate ADES with pastas 
+    sm_gw = ml_gw.stressmodels['recharge']
+    sm_gw.prec = ps.timeseries.TimeSeries(df.P)
+    sm_gw.evap = ps.timeseries.TimeSeries(df.PET)
+    prosp_FS4 = ml_gw.simulate(tmin=tmin,tmax=tmax)
+    prosp_FS4.to_csv(os.path.join('prosp',f'sim_ADES_cm{cm_id:02d}.csv'))
 
-mlsim.parameters = ml.parameters
-
-sim_gw = mlsim.simulate(tmin='2006-01-01',tmax='2100-12-31')
-
-fig,ax = plt.subplots(1,1,figsize=(6,6))
-sim_gw.plot(ax=ax)
-gw_df['h'].plot(ls='',marker='.',c='red',ax=ax)
-
-sim_gw.to_csv('gw_RCP85.csv')
 
 
 
