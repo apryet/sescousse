@@ -81,6 +81,8 @@ for l,d in dirs.items():
 # comparison sim dirs 
 dirs = [ f'histo_drn{dcm}' for dcm in [0,40,110,150,200,300] ]
 
+dirs = ['drn_alt_dd_40','drn_alt_dd_110','drn_alt_hd_40','drn_alt_hd_110']
+
 from multiprocessing import Process, Manager
 
 def store_indic(d,indics):

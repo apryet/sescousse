@@ -99,14 +99,13 @@ for dd in [0.4,1.10,1.50,2.0,3.0]: set_dd(dd,tpl_dir)
 # ----------------------------------------
 
 # generate simulation with alternative drainage network (dn) and depth (dd, m from land surface)
-def set_dn(dn_shp_name, dd, tpl_dir):
+def set_dn(drn_shp_name, dd, tpl_dir):
     '''
-    dn_shp_name : name of shapefile, to be found in gis dir
+    drn_shp_name : name of shapefile, to be found in gis dir
     dd : drainage depth
     '''
-
     #  sim dir 
-    dn_suffix = dn_shp_name.split('.')[0].split('_')[-1] # yields "hd" or "ld"
+    dn_suffix = drn_shp_name.split('.')[0].split('_')[-1] # yields "hd" or "ld"
     sim_dir = f'drn_alt_{dn_suffix}_{int(dd*100)}' # yields e.g. "drn_alt_ld_110"
 
     # cp simulation from template 
@@ -124,7 +123,7 @@ def set_dn(dn_shp_name, dd, tpl_dir):
     mg = ml.modelgrid
     ix = flopy.utils.GridIntersect(mg,method='vertex')
 
-    drn_lines_shp = os.path.join('..','gis',dn)
+    drn_lines_shp = os.path.join('..','gis',drn_shp_name)
     sf = shapefile.Reader(drn_lines_shp)
     shapes = sf.shapes()
 
@@ -150,6 +149,13 @@ def set_dn(dn_shp_name, dd, tpl_dir):
     drn.stress_period_data.set_data({i:rec0 for i in range(nper)}) 
     drn.maxbound = len(rows)
 
+    # update obs package 
+    # build obs data
+    drn_obs = {'sescousse.drn.obs.output.csv': [('D', 'DRN', 'D')]}
+
+    # initialize obs package
+    drn.obs.initialize(filename='sescousse.drn.obs', continuous=drn_obs)
+
     # make sure budget and heads are saved
     ml.oc.saverecord = {k:[('HEAD','LAST'), ('BUDGET','LAST')] for k in range(nper)}
 
@@ -157,15 +163,13 @@ def set_dn(dn_shp_name, dd, tpl_dir):
     sim.write_simulation()
     success, buff = sim.run_simulation(report=True)
 
+    # drainage depths
+    dds = [0.4,1.10]*2
 
+    # drainage networks in gis dir
+    drn_shp_names = ['drn_lines_hd.shp']*2+['drn_lines_ld.shp']*2
 
-# drainage depths
-dds = [0.4,1.10]*2
-
-# drainage networks in gis dir
-dn_shp_names = ['drn_lines_hd.shp']*2+['drn_lines_dd.shp']*2
-
-for dn_shp_name,dd in zip(dn_shp_names,dds): set_dn(dn_shp_name, dd, tpl_dir)
+for drn_shp_name,dd in zip(drn_shp_names,dds): set_dn(drn_shp_name, dd, tpl_dir)
 
 
 
