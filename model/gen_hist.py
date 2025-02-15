@@ -171,6 +171,6 @@ sim.set_sim_path(sim_dir)
 sim.write_simulation()
 
 # -- run simulation 
-#success, buff = sim.run_simulation(report=True)
+success, buff = sim.run_simulation(report=True)
 
 
