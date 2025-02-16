@@ -1,9 +1,12 @@
 import os
 import pandas as pd
-import matplotlib.pyplot as plt
 import pastas as ps
 import numpy as np
 from datetime import date, time, datetime
+import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
+import glob
+
 
 # plot settings
 plt.rc('font', family='serif', size=9)
@@ -50,7 +53,7 @@ ml_riv = ps.Model(FS4.loc[start_date:end_date], name="FS4")
 sm_riv = ps.RechargeModel(prec=P,evap=ET0,
                       rfunc=ps.rfunc.FourParam(), 
                        name="recharge",  
-                       recharge=pqs.rch.Peterson(),
+                       recharge=ps.rch.Peterson(),
                        settings=("prec", "evap")
                        ) 
 
@@ -115,12 +118,11 @@ sim_ADES.to_csv('sim_ADES.csv')
 # simulation over  prospective period 
 # -------------------------------------------------
 
-import glob
-
+rcp_start= pd.to_datetime('2005-08-01') # rcp start 
 cm_df = pd.read_excel(os.path.join('..','data','clim_models.xlsx'),index_col=0)
 src_dir = os.path.join('..','data','DRIAS')
 
-tmin, tmax = pd.to_datetime('2010-01-01'), pd.to_datetime('2100-01-01')
+tmin, tmax = pd.to_datetime('1980-01-01'), pd.to_datetime('2099-12-31')
 
 for cm_id,cm_tag in zip(cm_df.index,cm_df.CM):
     # read processed DRIAS files corresponding to cm_id 
@@ -133,17 +135,81 @@ for cm_id,cm_tag in zip(cm_df.index,cm_df.CM):
     clim.to_csv(os.path.join('prosp',f'clim_cm{cm_id:02d}.csv'))
     # simulate FS4 with pastas
     sm_riv = ml_riv.stressmodels['recharge']
-    sm_riv.prec = ps.timeseries.TimeSeries(df.P)
-    sm_riv.evap = ps.timeseries.TimeSeries(df.PET)
-    prosp_FS4 = ml_riv.simulate(tmin=tmin,tmax=tmax)
+    sm_riv.prec = ps.timeseries.TimeSeries(clim.P)
+    sm_riv.evap = ps.timeseries.TimeSeries(clim.PET)
+    prosp_FS4 = ml_riv.simulate(tmin=tmin,tmax=tmax,warmup=5*365)
     prosp_FS4.to_csv(os.path.join('prosp',f'sim_FS4_cm{cm_id:02d}.csv'))
     # simulate ADES with pastas 
     sm_gw = ml_gw.stressmodels['recharge']
-    sm_gw.prec = ps.timeseries.TimeSeries(df.P)
-    sm_gw.evap = ps.timeseries.TimeSeries(df.PET)
-    prosp_FS4 = ml_gw.simulate(tmin=tmin,tmax=tmax)
+    sm_gw.prec = ps.timeseries.TimeSeries(clim.P)
+    sm_gw.evap = ps.timeseries.TimeSeries(clim.PET)
+    prosp_FS4 = ml_gw.simulate(tmin=tmin,tmax=tmax,warmup=5*365)
     prosp_FS4.to_csv(os.path.join('prosp',f'sim_ADES_cm{cm_id:02d}.csv'))
 
 
+# -------------------------------------------------
+# -----            plots        -------------------
+# -------------------------------------------------
+
+prosp_dic = {}
+
+for cm_id in cm_df.index:
+    clim_file = os.path.join('prosp',f'clim_cm{cm_id:02d}.csv')
+    clim = pd.read_csv(clim_file,header=0,index_col=0,parse_dates=True)
+    ades_file = os.path.join('prosp',f'sim_ADES_cm{cm_id:02d}.csv')
+    ades = pd.read_csv(ades_file,header=0,index_col=0,parse_dates=True)
+    ades.columns=['ADES']
+    fs4_file = os.path.join('prosp',f'sim_FS4_cm{cm_id:02d}.csv')
+    fs4 = pd.read_csv(fs4_file,header=0,index_col=0,parse_dates=True)
+    fs4.columns=['FS4'] 
+    prosp_dic[cm_id] = pd.concat([clim,ades,fs4],axis=1)[tmin:tmax]
+
+prosp = pd.concat(prosp_dic,names=['cm'],axis=1)
+agg_dic = {'P':'sum','PET':'sum','ADES':'mean','FS4':'mean'}
+mix_agg_dic = {(l,c):f for l in prosp.columns.levels[0] for c,f in agg_dic.items()}
+prospy = prosp.groupby(pd.Grouper(freq='Y')).agg(mix_agg_dic)
+
+
+fig,axs=plt.subplots(4,1,sharex=True,figsize=(10,7))
+# ---- total precip
+tsy=prospy.xs('P',1,1)
+tsy.plot(style='+',ax=axs[0],color='black',lw=0.5,ms=3, alpha=0.5,legend=False)
+tsy.mean(axis=1).rolling(window=10,center=True).mean().plot(ax=axs[0],color='tomato',ls='-', lw=2,legend=False)
+axs[0].grid(which='both')
+axs[0].set_xticklabels([])
+axs[0].set_ylabel('P [mm/y]')
+
+# ---- potential evapotranspiration
+tsy=prospy.xs('PET',1,1)
+tsy.plot(style='+',ax=axs[1],color='black',lw=0.5,ms=3, alpha=0.5,legend=False)
+tsy.mean(axis=1).rolling(window=10,center=True).mean().plot(ax=axs[1],color='tomato',ls='-', lw=2,legend=False)
+axs[1].grid(which='both')
+axs[1].set_xticklabels([])
+axs[1].set_ylabel('PET [mm/y]')
+
+# ---- ADES Groundwater level 
+tsy=prospy.xs('ADES',1,1)
+tsy.plot(style='+',ax=axs[2],color='black',lw=0.5,ms=3, alpha=0.5,legend=False)
+tsy.mean(axis=1).rolling(window=10,center=True).mean().plot(ax=axs[2],color='tomato',ls='-', lw=2,legend=False)
+axs[2].grid(which='both')
+axs[2].set_xticklabels([])
+axs[2].set_ylabel('ADES [m NGF]')
+
+# ---- FS4 river level 
+tsy=prospy.xs('FS4',1,1)
+tsy.plot(style='+',ax=axs[3],color='black',lw=0.5,ms=3, alpha=0.5,legend=False)
+tsy.mean(axis=1).rolling(window=10,center=True).mean().plot(ax=axs[3],color='tomato',ls='-', lw=2,legend=False)
+axs[3].grid(which='both')
+axs[3].set_ylabel('FS4 [m NGF]')
+
+# --- decoration
+for ax in axs:
+    ax.axvline(pd.to_datetime(rcp_start),alpha=0.5,lw=1.5,ls=':',color='black')
+
+lls =  [ Line2D([0], [0], label=f'Simulated Annual Values', marker='+', linestyle='', color='black',alpha=0.5)]
+lls += [Line2D([0], [0], label='Multi-model 10-year moving average',linestyle='-', color='tomato')]
+fig.legend(handles=lls,loc='upper center',ncols=6,facecolor='white', framealpha=1)
+fig.tight_layout()
+fig.savefig(os.path.join('fig','long_term_records.pdf'),dpi=300)
 
 
