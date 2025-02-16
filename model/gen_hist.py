@@ -54,13 +54,13 @@ clim_df.ET0 = clim_df.ET0.interpolate() # gap-filling
 clim_df.to_csv(os.path.join(sim_dir,'clim.csv'))
 
 # simulated piezometric level at ADES obs well
-ades_file=os.path.join('..','sim','sim_ADES.csv')
+ades_file=os.path.join('..','sim','histo','sim_ADES.csv')
 ades_df = pd.read_csv(ades_file,parse_dates=True,index_col=0,sep=',')
 ades_df.index = pd.DatetimeIndex(pd.to_datetime(ades_df.index,format='%d/%m/%Y')).date
 ades = ades_df['h']
 
 # simulated river level at FS4 
-fs4_file=os.path.join('..','sim','sim_FS4.csv')
+fs4_file=os.path.join('..','sim','histo','sim_FS4.csv')
 fs4_df = pd.read_csv(fs4_file,parse_dates=True,index_col=0,sep=',')
 fs4_df.index = pd.DatetimeIndex(pd.to_datetime(fs4_df.index,format='%d/%m/%Y')).date
 fs4 = fs4_df['h']
@@ -171,6 +171,6 @@ sim.set_sim_path(sim_dir)
 sim.write_simulation()
 
 # -- run simulation 
-#success, buff = sim.run_simulation(report=True)
+success, buff = sim.run_simulation(report=True)
 
 
