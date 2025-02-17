@@ -108,11 +108,14 @@ rcha.recharge = {i:rech[i] for i in range(nper)}
 evta = ml.get_package('evt')
 evta.rate.set_data({i:evt[i] for i in range(nper)})
 
-# --- drn package (root aquifer water uptake)
-drn = ml.get_package('drn_0')
-drn_spd = drn.stress_period_data.get_data()
-rec0 = drn_spd[0]
-drn.stress_period_data.set_data({i:rec0 for i in range(nper)})
+# --- drn package (if present)
+try : 
+    drn = ml.get_package('drn_0')
+    drn_spd = drn.stress_period_data.get_data()
+    rec0 = drn_spd[0]
+    drn.stress_period_data.set_data({i:rec0 for i in range(nper)})
+except : # in case the scenario does not present drn package 
+    print(f'***INFO***: Could not update stress_period_data for {sim_dir}')
 
 # --- river network 
 

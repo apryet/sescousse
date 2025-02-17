@@ -18,7 +18,7 @@ def cp_from_tpl(tpl_dir,sim_dir):
         shutil.copytree(tpl_dir,sim_dir)
         # clear calibration and output files
         for pattern in ['cal*','*.jcb','*.ins','*.tpl',\
-                '*ut.csv','*.list','*.hds','*.cbc']:
+                '*ut.csv','*.lst','*.list','*.hds','*.cbc']:
             for f in glob.glob(os.path.join(sim_dir,pattern)):
                 os.remove(f)
         # clear figures
