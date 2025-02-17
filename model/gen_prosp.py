@@ -121,7 +121,7 @@ riv_spd = {}
 for i in range(nper):
     riv_rec = riv_rec0.copy()
     # h_riv = hriv(ss) + (hriv(fs4,t)-hriv(fs4,ss)) + dh
-    riv_rec['stage'] = riv_rec0['stage']+ (riv_ref_records[i]-riv_ref_value)+parvals.loc['dhriv']
+    riv_rec['stage'] = riv_rec0['stage']+ (riv_ref_records.iloc[i]-riv_ref_value)+parvals.loc['dhriv']
     # set conductance 
     riv_rec['cond'] = parvals.loc['criv']
     # adjust river bottom to avoid hriv < rbot
@@ -142,7 +142,7 @@ ghb_dh = ghb_dh.loc[start_date:end_date]
 ghb_spd = {}
 for i in range(nper):
     ghb_rec = ghb_rec0.copy()
-    ghb_rec['bhead'] = ghb_rec0['bhead'] + ghb_dh[i]
+    ghb_rec['bhead'] = ghb_rec0['bhead'] + ghb_dh.iloc[i]
     ghb_spd[i]=ghb_rec
 
 ml.ghb.stress_period_data.set_data(ghb_spd)

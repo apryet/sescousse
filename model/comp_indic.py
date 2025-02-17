@@ -24,7 +24,6 @@ dtm_rast = flopy.utils.Raster.load(dtm_file)
 # -------------------------------------
 
 def get_indic(sim_dir):
-    print(f'Starting get_indic for {sim_dir}')
     # alert thresholds (depths)
     depth_w = 0.4 # water excess 
     depth_d = 1.2 # water deficit
@@ -137,12 +136,6 @@ for d in dirs:
 # ----    plots    --------------
 # ---------------------------------------------------------
 
-
-# alternative drainage networks
-dirs = ['histo_drn_alt_ld_40','histo_drn_alt_ld_110',\
-        'histo_drn_alt_hd_40','histo_drn_alt_hd_110']
-
-#dirs = ['prosp_09', 'prosp_03', 'prosp_07', 'prosp_01', 'prosp_10']
 '''
 colors = {'cal':'k','nodrn':'darkblue',
           'drn40':'darkgreen','drn110':'tan','drn150':'orange','drn200':'darkred','drn300':'purple'}
@@ -203,7 +196,7 @@ fig.savefig(os.path.join('fig',f'{label}_drn_records.pdf'),dpi=300)
 drnobs_df = pd.concat(drnobs.values(), axis=1, keys=drnobs.keys())
 dd = drnobs_df.loc[:,(slice(None),'flow')]
 dd.columns = dd.columns.get_level_values(0)
-dd.to_excel(f'{label}_sim_histo_drn.xlsx')
+dd.to_excel(os.path.join('fig',f'{label}_sim_histo_drn.xlsx'))
 
 # --- cumulated annual drainage values 
 

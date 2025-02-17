@@ -72,7 +72,7 @@ print(biais)
 # simulation over  historical period 
 sim_FS4 = ml_riv.simulate(tmin='1950-01-01',tmax='2024-10-14')
 sim_FS4.name = 'h'
-sim_FS4.to_csv('sim_FS4.csv')
+sim_FS4.to_csv(os.path.join('histo','sim_FS4.csv')
 
 # -------------------------------------------------
 # model for F ADES 
@@ -112,7 +112,7 @@ print(biais)
 # simulation over  historical period 
 sim_ADES = ml_gw.simulate(tmin='1950-01-01',tmax='2024-10-14')
 sim_ADES.name = 'h'
-sim_ADES.to_csv('sim_ADES.csv')
+sim_ADES.to_csv(os.path.join('histo','sim_ADES.csv')
 
 # -------------------------------------------------
 # simulation over  prospective period 
