@@ -24,7 +24,7 @@ sim_dir = args.sim_dir
 if not os.path.exists(sim_dir):
     shutil.copytree(tpl_dir,sim_dir)
 else: 
-    print('Failed to copy, directory exists')
+    print('***WARNING***: Failed to copy, directory exists')
 
 # set sim start end dates 
 start_date = pd.to_datetime('2004-10-01').date()
@@ -70,7 +70,7 @@ fs4 = fs4_df['h']
 # --------------------------------------------------
 
 # load template model 
-sim = flopy.mf6.MFSimulation.load(sim_ws=sim_dir)
+sim = flopy.mf6.MFSimulation.load(sim_ws=tpl_dir)
 ml = sim.get_model()
 
 # --- setup recharge model 

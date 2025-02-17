@@ -16,14 +16,16 @@ tpl_dir = 'master_glm'
 def cp_from_tpl(tpl_dir,sim_dir):
     if not os.path.exists(sim_dir):
         shutil.copytree(tpl_dir,sim_dir)
-        # clear calibration files
-        for f in glob.glob(os.path.join(sim_dir,'cal*')):
+        # clear calibration and output files
+        for pattern in ['cal*','*.jcb','*.ins','*.tpl',\
+                '*ut.csv','*.list','*.hds','*.cbc']:
+            for f in glob.glob(os.path.join(sim_dir,pattern)):
+                os.remove(f)
+        # clear figures
+        for f in glob.glob(os.path.join(sim_dir,'fig','*.*')):
             os.remove(f)
-        # clear heavy output files 
-        os.remove(os.path.join(sim_dir,'sescousse.hds'))
-        os.remove(os.path.join(sim_dir,'sescousse.cbc'))
     else: 
-        print('Failed to copy, directory exists')
+        print('WARNING : Failed to copy, directory exists')
 
 # --------------------------------------------------------
 # no drains  
@@ -35,8 +37,8 @@ sim_dir = 'drn0'
 # cp simulation from template 
 cp_from_tpl(tpl_dir,sim_dir)
 
-# load new model 
-sim = flopy.mf6.MFSimulation.load(sim_ws=sim_dir)
+# load template model 
+sim = flopy.mf6.MFSimulation.load(sim_ws=tpl_dir)
 nper = sim.tdis.nper.data
 ml = sim.get_model()
 
@@ -46,9 +48,10 @@ drn = ml.remove_package('drn_0')
 # make sure budget and heads are saved
 ml.oc.saverecord = {k:[('HEAD','LAST'), ('BUDGET','LAST')]for k in range(nper)}
 
-# write new simulation and run 
+# write new simulation and run
+sim.set_sim_path(sim_dir)
 sim.write_simulation()
-success, buff = sim.run_simulation(report=True)
+#success, buff = sim.run_simulation(report=True)
 
 # --------------------------------------------------------
 # identical drain network with alternative drainage level 
@@ -64,7 +67,7 @@ def set_dd(dd,tpl_dir):
     cp_from_tpl(tpl_dir,sim_dir)
 
     # load new model 
-    sim = flopy.mf6.MFSimulation.load(sim_ws=sim_dir)
+    sim = flopy.mf6.MFSimulation.load(sim_ws=tpl_dir)
     ml = sim.get_model()
     nper = sim.tdis.nper.data
 
@@ -86,8 +89,9 @@ def set_dd(dd,tpl_dir):
     ml.oc.saverecord = {k:[('HEAD','LAST'), ('BUDGET','LAST')] for k in range(nper)}
 
     # write new simulation and run 
+    sim.set_sim_path(sim_dir)
     sim.write_simulation()
-    success, buff = sim.run_simulation(report=True)
+    #success, buff = sim.run_simulation(report=True)
 
 
 
@@ -110,7 +114,7 @@ def set_dn(drn_shp_name, dd, tpl_dir):
     # cp simulation from template 
     cp_from_tpl(tpl_dir,sim_dir)
     # load new model 
-    sim = flopy.mf6.MFSimulation.load(sim_ws=sim_dir)
+    sim = flopy.mf6.MFSimulation.load(sim_ws=tpl_dir)
     ml = sim.get_model()
     nper = sim.tdis.nper.data
     # resample dtm to model grid 
@@ -145,9 +149,10 @@ def set_dn(drn_shp_name, dd, tpl_dir):
     drn.obs.initialize(filename='sescousse.drn.obs', continuous=drn_obs)
     # make sure budget and heads are saved
     ml.oc.saverecord = {k:[('HEAD','LAST'), ('BUDGET','LAST')] for k in range(nper)}
-    # write new simulation and run 
+    # write new simulation and run
+    sim.set_sim_path(sim_dir)
     sim.write_simulation()
-    success, buff = sim.run_simulation(report=True)
+    #success, buff = sim.run_simulation(report=True)
 
 
 # drainage depths

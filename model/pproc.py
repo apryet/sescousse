@@ -14,7 +14,7 @@ dbcol_width = 19/2.54
 
 # load simulation data 
 sim_dir = '.'
-sim = flopy.mf6.MFSimulation.load(sim_ws=sim_dir)
+sim = flopy.mf6.MFSimulation.load(sim_ws=sim_dir,load_only=['dis','tdis'],verbosity_level=0)
 start_date= pd.to_datetime(sim.tdis.start_date_time.get_data())
 hsim = pd.read_csv(os.path.join(sim_dir,'sescousse.head.csv'),index_col='time')
 hsim['date'] = (pd.to_datetime(start_date)+pd.to_timedelta(hsim.index.values.astype(float),'s')).date

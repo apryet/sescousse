@@ -13,7 +13,7 @@ mdcol_width = 14/2.54
 dbcol_width = 19/2.54
 
 # load simulation data 
-sim = flopy.mf6.MFSimulation.load(sim_ws='.')
+sim = flopy.mf6.MFSimulation.load(sim_ws='.',load_only=['tdis','dis'])
 ml = sim.get_model()
 ml.modelgrid.set_coord_info(crs=2154)
 nper = sim.tdis.nper.data

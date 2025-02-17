@@ -25,11 +25,11 @@ sim_dir = f'prosp_{cm:02d}'
 if not os.path.exists(sim_dir):
     shutil.copytree(tpl_dir,sim_dir)
 else: 
-    print('Failed to copy, directory exists')
+    print('WARNING: Failed to copy, directory exists')
 
 # set sim start end dates 
-start_date = pd.to_datetime('2010-01-01').date()
-end_date = pd.to_datetime('2100-01-01').date()
+start_date = pd.to_datetime('2009-10-01').date()
+end_date = pd.to_datetime('2099-09-30').date()
 sim_dates = pd.date_range(start_date,end_date).date
 
 # --------------------------------------------------
@@ -59,7 +59,7 @@ fs4 = ades_df.iloc[:,0]
 # --------------------------------------------------
 
 # load template model 
-sim = flopy.mf6.MFSimulation.load(sim_ws=sim_dir)
+sim = flopy.mf6.MFSimulation.load(sim_ws=tpl_dir)
 ml = sim.get_model()
 
 # --- setup recharge model 
@@ -75,8 +75,8 @@ rech = swb_df.loc[:,'R']*0.001/86400 # mm/d to m/s # recharge
 evt = swb_df.loc[:,'RU']*0.001/86400 # mm/d to m/s # transpiration (root water uptake)
 
 # no recharge nor transpiration for initial steady state
-rech[0] = 0
-evt[0] = 0
+rech.iloc[0] = 0
+evt.iloc[0] = 0
 
 # --- tdis package 
 
@@ -90,11 +90,11 @@ tdis.perioddata = [ [perlen,1,1] for _ in range(nper)]
 
 # --- recharge package
 rcha = ml.get_package('rcha_0')
-rcha.recharge = {i:rech[i] for i in range(nper)}
+rcha.recharge = {i:rech.iloc[i] for i in range(nper)}
 
 # --- evt package (root aquifer water uptake)
 evta = ml.get_package('evt')
-evta.rate.set_data({i:evt[i] for i in range(nper)})
+evta.rate.set_data({i:evt.iloc[i] for i in range(nper)})
 
 # --- drn package 
 drn = ml.get_package('drn_0')
