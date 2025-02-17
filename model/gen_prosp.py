@@ -29,7 +29,8 @@ else:
 
 # set sim start end dates 
 start_date = pd.to_datetime('2009-10-01').date()
-end_date = pd.to_datetime('2099-09-30').date()
+end_date = pd.to_datetime('2010-09-30').date()
+#end_date = pd.to_datetime('2099-09-30').date()
 sim_dates = pd.date_range(start_date,end_date).date
 
 # --------------------------------------------------
@@ -45,14 +46,12 @@ clim_df.to_csv(os.path.join(sim_dir,'clim.csv'))
 # simulated piezometric level at ADES obs well
 ades_file=os.path.join('..','sim','prosp',f'sim_ADES_cm{cm:02d}.csv')
 ades_df = pd.read_csv(ades_file,parse_dates=True,index_col=0,sep=',')
-ades_df.index = pd.DatetimeIndex(pd.to_datetime(ades_df.index,format='%d/%m/%Y')).date
 ades = ades_df.iloc[:,0]
 
 # simulated river level at FS4 
 fs4_file=os.path.join('..','sim','prosp',f'sim_FS4_cm{cm:02d}.csv')
 fs4_df = pd.read_csv(fs4_file,parse_dates=True,index_col=0,sep=',')
-fs4_df.index = pd.DatetimeIndex(pd.to_datetime(fs4_df.index,format='%d/%m/%Y')).date
-fs4 = ades_df.iloc[:,0]
+fs4 = fs4_df.iloc[:,0]
 
 # --------------------------------------------------
 # update stress period data 
@@ -63,7 +62,7 @@ sim = flopy.mf6.MFSimulation.load(sim_ws=tpl_dir)
 ml = sim.get_model()
 
 # --- setup recharge model 
-parvals = pd.read_csv(os.path.join(sim_dir,'par.dat'),header=None,delim_whitespace=True,index_col=0)[1]
+parvals = pd.read_csv(os.path.join(sim_dir,'par.dat'),header=None,sep=r'\s+',index_col=0)[1]
 
 swb.run_swb(theta_sat = parvals.loc['tsat'],
             D_max= parvals.loc['dmax'],

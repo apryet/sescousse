@@ -8,8 +8,8 @@ import pandas as pd
 def run_swb(clim_file='clim.csv',theta_sat = None, D_max= None, Kc=None, par_file=None, cwd='.'):
     # load clim data
     clim = pd.read_csv(os.path.join(cwd,clim_file),index_col=0, parse_dates=True)
-    P = clim.P
-    ET0 = clim.ET0 # reference evapotranspiration
+    P = clim.P.values
+    ET0 = clim.ET0.values # reference evapotranspiration
 
     # set start/end dates
     start_date = clim.index.min()
