@@ -3,6 +3,14 @@ import numpy as np
 import pandas as pd
 import flopy
 
+print('Loading rasters')
+# load idomain raster
+idomain_file = os.path.join('..','gis','idomain.tif') 
+idomain_rast = flopy.utils.Raster.load(idomain_file)
+# load dtm raster
+dtm_file = os.path.join('..','gis','dtm_no_drn_ext_trim_filt.tif') 
+dtm_rast = flopy.utils.Raster.load(dtm_file)
+
 # -------------------------------------
 # ----  indicator definitions     -----
 # -------------------------------------

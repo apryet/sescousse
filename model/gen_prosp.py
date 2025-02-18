@@ -19,7 +19,7 @@ cm = int(args.cm)
 #cm = 1
 
 # simulation directory
-sim_dir = f'prosp_{cm:02d}'
+sim_dir = f'prosp_{tpl_dir}_{cm:02d}'
 
 # cp simulation from template 
 if not os.path.exists(sim_dir):
@@ -94,12 +94,16 @@ rcha.recharge = {i:rech.iloc[i] for i in range(nper)}
 evta = ml.get_package('evt')
 evta.rate.set_data({i:evt.iloc[i] for i in range(nper)})
 
-# --- drn package 
-drn = ml.get_package('drn_0')
-drn_spd = drn.stress_period_data.get_data()
-rec0 = drn_spd[0]
-#drn.stress_period_data.set_data({i:rec0 for i in range(nper)})
-drn.stress_period_data.set_data({0:rec0})
+# --- drn package (if present)
+try:
+    drn = ml.get_package('drn_0')
+    drn_spd = drn.stress_period_data.get_data()
+    rec0 = drn_spd[0]
+    #drn.stress_period_data.set_data({i:rec0 for i in range(nper)})
+    drn.stress_period_data.set_data({0:rec0})
+except : # in case the scenario does not present drn package 
+    print(f'***INFO***: Could not update stress_period_data for {sim_dir}')
+
 
 # --- river network 
 
