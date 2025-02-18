@@ -29,8 +29,7 @@ else:
 
 # set sim start end dates 
 start_date = pd.to_datetime('2009-10-01').date()
-end_date = pd.to_datetime('2010-09-30').date()
-#end_date = pd.to_datetime('2099-09-30').date()
+end_date = pd.to_datetime('2099-09-30').date()
 sim_dates = pd.date_range(start_date,end_date).date
 
 # --------------------------------------------------
